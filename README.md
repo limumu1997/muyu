@@ -1,5 +1,7 @@
 # 赛博木鱼 · 功德即工资
 
+**在线体验 → https://limumu1997.github.io/muyu/**
+
 输入薪资和班表，算出你每一秒值多少钱。**不敲的时候功德一直叠加，敲一下全部收走**——攒得越久，一敲越响。
 
 纯原生 HTML/CSS/JS，零依赖、零构建，双击 `index.html` 就能用，也可以直接扔任意静态托管。
@@ -33,8 +35,12 @@
 
 ## 用法
 
+直接开 https://limumu1997.github.io/muyu/ 就能用。手机上用浏览器菜单「添加到主屏幕」可以装成 App，装完断网也能敲。
+
+本地跑：
+
 ```bash
-# 本地起个静态服务（PWA / Service Worker 需要 http，file:// 下不生效）
+# PWA / Service Worker 需要 http，file:// 下不生效
 python3 -m http.server 8765
 # 打开 http://127.0.0.1:8765
 ```
