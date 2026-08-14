@@ -163,27 +163,50 @@ function excitation(ctx, ms = 5, pow = 2) {
   return src;
 }
 
-/** 在 ctx 上于 t 时刻构建一次敲击，接到 dest；vel 为力度 0~1 */
-function buildKnock(ctx, dest, t, vel = 1, detune = 1) {
+/** 敲击点 → 音色。参数含义见 buildKnock。
+ *  真木鱼就是这样：中间腔体空、壁薄，敲下去沉且余韵长；越靠边壁越厚实，
+ *  腔体带不动，只剩短促发脆的木头声、音高还偏高；下方开口槽附近最"活"。
+ *  nx/ny 是相对木鱼椭圆中心的归一化坐标（±1 为边缘）。 */
+function timbreAt(nx, ny) {
+  // 到边缘的距离决定壁厚：越靠边木头越实，音越高越脆
+  const dEdge = Math.min(1, Math.hypot(nx, ny));
+  // 甜点不在几何中心，而在开口槽正上方那块鼓面（略偏下），那里腔体带得最动
+  const dSweet = Math.min(1, Math.hypot(nx, (ny - 0.25) / 0.95));
+
+  return {
+    detune: 1 + 0.40 * dEdge * dEdge,     // 边缘比甜点高约五个半音
+    body: 1.10 - 0.75 * dSweet,           // 腔体共振：甜点足、边缘瘪
+    edge: 0.70 + 1.15 * dEdge,            // 槌头触木的"嗒"：边缘最突出
+  };
+}
+
+/** 在 ctx 上于 t 时刻构建一次敲击，接到 dest；vel 为力度 0~1
+ *  tone: detune 音高倍率 / body 腔体共振量 0~1.3 / edge 高频瞬态量 */
+function buildKnock(ctx, dest, t, vel = 1, tone = {}) {
+  const { detune = 1, body = 1, edge = 1 } = tone;
   const out = ctx.createGain();
-  out.gain.value = 0.6 * vel;
+  // 边缘音瞬态成分重，不按 edge 补偿回来会顶到 1.0 以上削波
+  out.gain.value = 0.6 * vel / (0.62 + 0.42 * edge);
   out.connect(dest);
 
   // 各模态用衰减正弦谐振，能量和衰减时间才控得准
-  for (const [ratio, dur, amp] of MODES) {
+  MODES.forEach(([ratio, dur, amp], i) => {
     const f = F0 * ratio * detune;
+    // 敲边缘时低模态被压住、高模态相对更突出，音色就从"笃"变成"嗒"
+    const w = i === 0 ? 0.42 + 0.58 * body : 1.30 - 0.30 * body;
+    const life = dur * (0.34 + 0.66 * body);
     const osc = ctx.createOscillator();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(f * 1.06, t);              // 敲击瞬间张力略高，很快回落
     osc.frequency.exponentialRampToValueAtTime(f, t + 0.03);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(amp, t + 0.003);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.gain.exponentialRampToValueAtTime(amp * w, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + life);
     osc.connect(g).connect(out);
     osc.start(t);
-    osc.stop(t + dur + 0.02);
-  }
+    osc.stop(t + life + 0.02);
+  });
 
   // 木质颗粒：带通噪声，让它不像纯电子正弦
   const grain = excitation(ctx, 6, 2);
@@ -198,9 +221,9 @@ function buildKnock(ctx, dest, t, vel = 1, detune = 1) {
   // 槌头触木的"哒"：木头敲击必须有的高频瞬态，衰减平缓些才听得见
   const click = excitation(ctx, 12, 0.8);
   const hp = ctx.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = 2400;
+  hp.type = 'highpass'; hp.frequency.value = 2400 * (0.85 + 0.3 * edge);
   const cg = ctx.createGain();
-  cg.gain.setValueAtTime(1.1, t);
+  cg.gain.setValueAtTime(1.1 * edge, t);
   cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
   click.connect(hp).connect(cg).connect(out);
   click.start(t);
@@ -230,14 +253,17 @@ function unlock(ctx) {
   } catch { /* 解锁失败就算了，后面照常尝试发声 */ }
 }
 
-function knockSound(vel = 1) {
+function knockSound(vel = 1, tone = {}) {
   if (!cfg.sound) return;
   try {
     const ctx = audio();
     if (!ctx) return;
     // 还没 running（刚 resume）就往后错开一点点排，免得包络落在时钟启动之前被吞掉
     const t = ctx.currentTime + (ctx.state === 'running' ? 0 : 0.02);
-    buildKnock(ctx, ctx.destination, t, vel, 0.97 + Math.random() * 0.06);
+    // 随机微扰收窄到 ±1%，别把位置带来的音色差给盖过去
+    const jitter = 0.99 + Math.random() * 0.02;
+    buildKnock(ctx, ctx.destination, t, vel,
+      { ...tone, detune: (tone.detune || 1) * jitter });
   } catch { /* 音频不可用就静默 */ }
 }
 
@@ -408,6 +434,40 @@ function render() {
     : '';
 }
 
+// ── 月相：按月龄画残缺 ────────────────────────
+// 农历月就是朔望月，初一为朔、十五前后为望，所以月龄直接决定月亮的缺法。
+// 用平均朔望月推月龄，误差半天以内，看形状足够；要精确到分钟得算摄动，不值当。
+const SYNODIC = 29.530588853 * 86400e3;
+const NEW_MOON = Date.UTC(2000, 0, 6, 18, 14);      // 2000-01-06 的朔，公认参考点
+
+/** 0=朔 0.25=上弦 0.5=望 0.75=下弦 */
+function moonPhase(now = Date.now()) {
+  return ((now - NEW_MOON) % SYNODIC + SYNODIC) % SYNODIC / SYNODIC;
+}
+
+const PHASE_NAMES = ['朔月', '蛾眉月', '上弦月', '盈凸月', '满月', '亏凸月', '下弦月', '残月'];
+
+/** 亮面路径：外缘半圆 + 终结线椭圆弧。
+ *  终结线是圆在斜光下的投影，所以是椭圆而不是圆——用两个圆去交是画不对月牙的。 */
+function moonPath(p, R = 48) {
+  const d = Math.cos(2 * Math.PI * p);        // 1 朔 → -1 望
+  const rx = Math.abs(d) * R;
+  const right = p < 0.5;                      // 上半月亮面在右，下半月在左（北半球）
+  const outer = right ? 1 : 0;
+  const inner = ((d > 0) === right) ? 0 : 1;  // 蛾眉时终结线与外缘同侧弯，凸月时反向
+  return `M0,${-R} A${R},${R} 0 0,${outer} 0,${R} A${rx},${R} 0 0,${inner} 0,${-R} Z`;
+}
+
+function renderMoon() {
+  const p = moonPhase();
+  $('moonLit').setAttribute('d', moonPath(p));
+  const lit = (1 - Math.cos(2 * Math.PI * p)) / 2;          // 照亮比例 0~1
+  const moon = $('moon');
+  moon.style.setProperty('--glow', (0.22 + 0.78 * lit).toFixed(3));
+  moon.setAttribute('aria-label',
+    `${PHASE_NAMES[Math.round(p * 8) % 8]}（月龄 ${(p * 29.53).toFixed(1)} 天）`);
+}
+
 // ── 木槌跟随指针 ──────────────────────────────
 const mallet = $('mallet');
 const fishBtn = $('fish');
@@ -501,7 +561,10 @@ function knock() {
   $('floats').appendChild(f);
   setTimeout(() => f.remove(), 1300);
 
-  knockSound(p.amount > 0 ? 1 : 0.55);
+  // 敲哪儿就是哪儿的音色：把落点换算成相对木鱼椭圆中心的归一化坐标
+  const nx = (pt.x - fr.width * FISH.cx) / (fr.width * FISH.rx * FISH.inset);
+  const ny = (pt.y - fr.height * FISH.cy) / (fr.height * FISH.ry * FISH.inset);
+  knockSound(p.amount > 0 ? 1 : 0.55, timbreAt(nx, ny));
   if (navigator.vibrate) navigator.vibrate(p.amount > 0 ? 18 : 8);
   render();
 }
@@ -673,7 +736,7 @@ $('inMusic').addEventListener('change', e => {
 // 页面回到前台时刷新；切走就停背景音，别在后台白耗电
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopBGM();
-  else { render(); if (cfg.music && cfg.salary) startBGM(); }
+  else { render(); renderMoon(); if (cfg.music && cfg.salary) startBGM(); }
 });
 
 // 停靠位按木鱼实际尺寸算，尺寸变了要重算
@@ -704,6 +767,8 @@ addEventListener('pointerdown', () => { if (cfg.music && cfg.salary) startBGM();
 
 render();
 setInterval(render, 200);
+renderMoon();
+setInterval(renderMoon, 36e5);        // 月亮一小时才动得出肉眼可见的一点，别跟着 render 跑
 if (!cfg.salary) setTimeout(openSheet, 600);
 
 if ('serviceWorker' in navigator) {

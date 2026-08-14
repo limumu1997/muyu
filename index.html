@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>赛博木鱼 · 功德即工资</title>
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪘</text></svg>">
 </head>
@@ -15,7 +15,19 @@
 
 <!-- 月夜远山：全部 CSS/SVG，无外部图片 -->
 <div class="scene" aria-hidden="true">
-  <div class="moon"></div>
+  <div class="moon" id="moon">
+    <svg viewBox="-50 -50 100 100">
+      <defs>
+        <radialGradient id="gMoon" cx="38%" cy="34%" r="72%">
+          <stop offset="0%" stop-color="#f4f1e6"/>
+          <stop offset="52%" stop-color="#dcdccf"/>
+          <stop offset="100%" stop-color="#b9beb7"/>
+        </radialGradient>
+      </defs>
+      <circle class="dark" cx="0" cy="0" r="48"/>
+      <path id="moonLit" fill="url(#gMoon)"/>
+    </svg>
+  </div>
   <div class="mist mist-a"></div>
   <div class="mist mist-b"></div>
   <svg class="hills" viewBox="0 0 1200 420" preserveAspectRatio="none">
@@ -226,6 +238,6 @@
   </div>
 </section>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

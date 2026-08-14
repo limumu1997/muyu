@@ -34,17 +34,25 @@ body{
 /* ── 月夜远山 ───────────────────── */
 .scene{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 
+/* 月相由 JS 按月龄画成 SVG 路径，--glow 是当前照亮比例（朔暗望亮） */
 .moon{
   position:absolute;top:9.5%;right:13%;     /* 避开右上角的设置按钮 */
-  width:46px;height:46px;border-radius:50%;
-  background:radial-gradient(circle at 38% 34%,#f4f1e6 0%,#dcdccf 52%,#b9beb7 100%);
+  width:46px;height:46px;
   opacity:.82;
+  animation:moonDrift 200s ease-in-out infinite alternate;
+}
+/* 光晕单独一层：月牙时该弱下去，不然缺了一半还照得满天亮 */
+.moon::before{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  opacity:var(--glow,1);transition:opacity 1.5s;
   box-shadow:
     0 0 26px 4px rgba(226,232,222,.13),
     0 0 90px 26px rgba(170,200,218,.09),
     0 0 190px 70px rgba(110,150,180,.05);
-  animation:moonDrift 200s ease-in-out infinite alternate;
 }
+.moon svg{position:relative;width:100%;height:100%;display:block;overflow:visible}
+/* 暗部不是全黑：地照让轮廓在夜空里若隐若现 */
+.moon .dark{fill:#8fa6b4;opacity:.10}
 @keyframes moonDrift{from{transform:translate(0,0)}to{transform:translate(-26px,16px)}}
 
 /* 雾：用渐变而不是 filter:blur，省 GPU */
