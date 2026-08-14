@@ -214,16 +214,30 @@ function audio() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     ac = new AC();
+    unlock(ac);
   }
   if (ac.state === 'suspended') ac.resume();
   return ac;
+}
+
+/** iOS 上 resume() 是异步的，不先喂一帧静音把时钟跑起来，第一下敲击会丢音 */
+function unlock(ctx) {
+  try {
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch { /* 解锁失败就算了，后面照常尝试发声 */ }
 }
 
 function knockSound(vel = 1) {
   if (!cfg.sound) return;
   try {
     const ctx = audio();
-    if (ctx) buildKnock(ctx, ctx.destination, ctx.currentTime, vel, 0.97 + Math.random() * 0.06);
+    if (!ctx) return;
+    // 还没 running（刚 resume）就往后错开一点点排，免得包络落在时钟启动之前被吞掉
+    const t = ctx.currentTime + (ctx.state === 'running' ? 0 : 0.02);
+    buildKnock(ctx, ctx.destination, t, vel, 0.97 + Math.random() * 0.06);
   } catch { /* 音频不可用就静默 */ }
 }
 
@@ -571,6 +585,40 @@ fishBtn.addEventListener('pointerdown', e => {
 fishBtn.addEventListener('pointerup', e => {
   if (e.pointerType !== 'mouse') aimMallet(null);   // 触摸抬手后木槌归位
 });
+// iOS 的侧边静音键会把网页音频整体掐掉，且网页无法检测、无法绕过，只能提示一句
+{
+  const iOS = /iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (iOS) $('iosAudioNote').hidden = false;
+}
+
+// ── 全屏 ──────────────────────────────────────
+// iOS Safari 不给普通元素全屏（只有 video 行），检测不到 API 就干脆不显示按钮，
+// 那边的“全屏”靠添加到主屏幕（manifest display:fullscreen）来实现。
+(() => {
+  const btn = $('btnFull');
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches
+    || navigator.standalone === true;
+  if (!req || standalone) return;             // 已经是全屏形态，或系统不支持
+
+  btn.hidden = false;
+  const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const sync = () => {
+    document.body.classList.toggle('is-full', isFull());
+    btn.setAttribute('aria-label', isFull() ? '退出全屏' : '全屏');
+  };
+  btn.addEventListener('click', () => {
+    (isFull() ? exit.call(document) : req.call(el, { navigationUI: 'hide' }))
+      ?.catch?.(() => toast('这个浏览器不让全屏'));
+  });
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(ev =>
+    document.addEventListener(ev, sync));
+  sync();
+})();
+
 $('btnSettings').addEventListener('click', openSheet);
 $('sheetMask').addEventListener('click', closeSheet);
 $('inLunchOn').addEventListener('change', () => { syncLunchRow(); previewCalc(); });

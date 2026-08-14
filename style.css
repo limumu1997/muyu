@@ -14,17 +14,20 @@
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
+html{height:100%}
 body{
+  /* fixed + inset:0 锁死在可见视口内：移动端地址栏伸缩、橡皮筋回弹都不会把内容顶走 */
+  position:fixed;inset:0;
   margin:0;
   font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
   color:var(--ink);
   background:
     radial-gradient(120% 90% at 72% 4%,#22323d 0%,#131e26 42%,transparent 74%),
     linear-gradient(180deg,#0c141a 0%,#080d11 58%,#05080b 100%);
-  min-height:100dvh;
   display:flex;flex-direction:column;
   overflow:hidden;
+  overscroll-behavior:none;
+  touch-action:manipulation;      /* 禁掉双击缩放，敲木鱼不该缩放页面 */
   user-select:none;
 }
 
@@ -99,6 +102,11 @@ body{
   border-radius:10px;display:grid;place-items:center;transition:color .2s,background .2s;
 }
 .icon-btn:hover{color:var(--gold);background:rgba(232,182,97,.08)}
+.topbar-actions{display:flex;align-items:center;gap:2px}
+/* 未全屏时显示“进入”图标，全屏后显示“退出”图标 */
+#btnFull .ic-out{display:none}
+body.is-full #btnFull .ic-in{display:none}
+body.is-full #btnFull .ic-out{display:block}
 
 /* ── 主舞台 ─────────────────────── */
 .stage{
@@ -293,6 +301,11 @@ body{
   transition:all .2s;font-family:inherit;
 }
 .week button.on{background:rgba(232,182,97,.16);border-color:var(--gold-soft);color:var(--gold)}
+
+.audio-note{
+  margin:2px 0 0;font-size:11.5px;line-height:1.7;
+  color:var(--ink-dim);opacity:.75;letter-spacing:.03em;
+}
 
 .calc-preview{
   margin:14px 0 18px;padding:13px 15px;border-radius:12px;

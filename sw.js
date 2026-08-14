@@ -1,4 +1,4 @@
-const CACHE = 'muyu-v4';
+const CACHE = 'muyu-v6';
 const ASSETS = ['./', './index.html', './style.css', './app.js', './icon.svg', './manifest.webmanifest'];
 
 self.addEventListener('install', e => {
