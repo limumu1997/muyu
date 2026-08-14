@@ -1,5 +1,5 @@
-const CACHE = 'muyu-v8';
-const ASSETS = ['./', './index.html', './style.css?v=8', './app.js?v=8', './icon.svg', './manifest.webmanifest'];
+const CACHE = 'muyu-v9';
+const ASSETS = ['./', './index.html', './style.css?v=9', './app.js?v=9', './icon.svg', './manifest.webmanifest'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

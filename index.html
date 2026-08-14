@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>赛博木鱼 · 功德即工资</title>
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪘</text></svg>">
 </head>
@@ -18,18 +18,51 @@
   <div class="moon" id="moon">
     <svg viewBox="-50 -50 100 100">
       <defs>
-        <radialGradient id="gMoon" cx="38%" cy="34%" r="72%">
-          <stop offset="0%" stop-color="#f4f1e6"/>
-          <stop offset="52%" stop-color="#dcdccf"/>
-          <stop offset="100%" stop-color="#b9beb7"/>
+        <radialGradient id="gMoon" cx="36%" cy="32%" r="78%">
+          <stop offset="0%" stop-color="#fdfaf0"/>
+          <stop offset="55%" stop-color="#e6e4d6"/>
+          <stop offset="100%" stop-color="#c2c7bf"/>
+        </radialGradient>
+        <!-- 暗面：中心微亮、边缘化进夜色，硬边圆盘看着像个碗底 -->
+        <radialGradient id="gMoonDark" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#9db4c2" stop-opacity=".16"/>
+          <stop offset="72%" stop-color="#8fa6b4" stop-opacity=".10"/>
+          <stop offset="100%" stop-color="#8fa6b4" stop-opacity="0"/>
         </radialGradient>
       </defs>
-      <circle class="dark" cx="0" cy="0" r="48"/>
+      <circle class="dark" cx="0" cy="0" r="49" fill="url(#gMoonDark)"/>
       <path id="moonLit" fill="url(#gMoon)"/>
     </svg>
   </div>
   <div class="mist mist-a"></div>
   <div class="mist mist-b"></div>
+
+  <!-- 夕阳：暮色场景专用，比月亮大、更沉、贴近山脊 -->
+  <div class="sun"></div>
+  <div class="clouds">
+    <div class="cloud c1"></div>
+    <div class="cloud c2"></div>
+    <div class="cloud c3"></div>
+  </div>
+
+  <!-- 竹林：竹竿分三层做景深，近的粗而暗、远的细而淡 -->
+  <div class="grove">
+    <div class="culm" style="--x:6%;--w:15px;--z:.85;--t:2s"></div>
+    <div class="culm" style="--x:17%;--w:9px;--z:.5;--t:0s"></div>
+    <div class="culm" style="--x:29%;--w:22px;--z:1;--t:3.4s"></div>
+    <div class="culm" style="--x:44%;--w:7px;--z:.38;--t:1.2s"></div>
+    <div class="culm" style="--x:58%;--w:12px;--z:.62;--t:4.1s"></div>
+    <div class="culm" style="--x:72%;--w:19px;--z:.92;--t:2.6s"></div>
+    <div class="culm" style="--x:86%;--w:8px;--z:.45;--t:5s"></div>
+    <div class="culm" style="--x:95%;--w:13px;--z:.7;--t:1.8s"></div>
+  </div>
+  <div class="leaves" id="leaves"></div>
+
+  <!-- 雨夜：雨幕用重复渐变平移，比逐条 DOM 省得多 -->
+  <div class="rain-far"></div>
+  <div class="rain-near"></div>
+  <div class="puddle"></div>
+
   <svg class="hills" viewBox="0 0 1200 420" preserveAspectRatio="none">
     <path class="hill-far"  d="M0 300 C 120 250 200 268 300 240 C 420 206 500 250 620 224 C 740 198 830 236 950 212 C 1060 190 1140 214 1200 200 L1200 420 L0 420 Z"/>
     <path class="hill-mid"  d="M0 340 C 100 306 190 320 300 296 C 430 268 520 306 640 288 C 780 266 860 296 980 280 C 1090 266 1150 282 1200 274 L1200 420 L0 420 Z"/>
@@ -220,11 +253,25 @@
     <span class="switch"></span>
   </label>
 
-  <label class="switch-row">
-    <span class="field-label">禅意背景音</span>
-    <input type="checkbox" id="inMusic" checked>
-    <span class="switch"></span>
-  </label>
+  <div class="field">
+    <span class="field-label">场景</span>
+    <div class="seg" id="scenePicker">
+      <button type="button" data-v="moon">月夜</button>
+      <button type="button" data-v="dusk">暮色</button>
+      <button type="button" data-v="bamboo">竹林</button>
+      <button type="button" data-v="rain">雨夜</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <span class="field-label">背景音</span>
+    <div class="seg" id="bgmPicker">
+      <button type="button" data-v="zen">禅意</button>
+      <button type="button" data-v="rain">雨声</button>
+      <button type="button" data-v="chime">风铃</button>
+      <button type="button" data-v="off">关闭</button>
+    </div>
+  </div>
 
   <p class="audio-note" id="iosAudioNote" hidden>
     听不到声音？iPhone / iPad 的侧边静音键拨到静音时，网页音频会被系统整体屏蔽——拨回响铃档即可。
@@ -238,6 +285,6 @@
   </div>
 </section>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

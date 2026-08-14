@@ -21,10 +21,35 @@ const DEFAULT_CFG = {
   lunchEnd: '13:00',
   week: [1, 2, 3, 4, 5],
   sound: true,
-  music: true,
+  scene: 'moon',        // moon 月夜 / dusk 暮色 / bamboo 竹林 / rain 雨夜
+  bgm: 'zen',           // zen 禅意 / rain 雨声 / chime 风铃 / off 关闭
 };
 
-let cfg = load('muyu.cfg', DEFAULT_CFG);
+const SCENES = [
+  ['moon', '月夜'], ['dusk', '暮色'], ['bamboo', '竹林'], ['rain', '雨夜'],
+];
+const BGMS = [
+  ['zen', '禅意'], ['rain', '雨声'], ['chime', '风铃'], ['off', '关闭'],
+];
+
+let cfg = migrate(load('muyu.cfg', DEFAULT_CFG), rawCfg());
+
+function rawCfg() {
+  try { return JSON.parse(localStorage.getItem('muyu.cfg')) || {}; } catch { return {}; }
+}
+
+/** 老档只有 music 布尔开关，换成 bgm 选项。
+ *  必须拿没被默认值填充过的原始存档来判断：load() 合并完默认值之后，
+ *  「用户关过背景音」和「用户没设置过」就分不出来了。 */
+function migrate(c, raw) {
+  if (typeof raw.music === 'boolean' && raw.bgm === undefined) {
+    c.bgm = raw.music ? 'zen' : 'off';
+  }
+  if (!SCENES.some(s => s[0] === c.scene)) c.scene = 'moon';
+  if (!BGMS.some(b => b[0] === c.bgm)) c.bgm = 'zen';
+  delete c.music;
+  return c;
+}
 let state = load('muyu.state', { total: 0, count: 0, best: 0, lastSettle: Date.now() });
 
 function load(key, fallback) {
@@ -134,11 +159,15 @@ function pendingNow() {
 // 想调音色：F0 决定音高（大木鱼调低到 ~380，小木鱼 ~700）；
 // 嫌闷就把下面 click 那段的 cg.gain 调大，嫌吵就调小。
 // 模态：[频率比, 衰减秒, 音量]
+// 模态比例刻意排得密而不规则：木头是各向异性的，模态多且互不成整数比，
+// 稀疏的谐波列听起来就成了钟或木琴。
 const MODES = [
-  [1.00, 0.34, 0.60],   // 基频腔体，撑起"笃"的音高
-  [1.94, 0.16, 0.24],   // 非整数比 → 木头的闷，不是钟的谐波列
-  [3.31, 0.075, 0.11],
-  [5.12, 0.035, 0.05],
+  [1.00, 0.30, 0.60],   // 基频腔体，撑起"笃"的音高
+  [1.63, 0.19, 0.30],
+  [2.42, 0.12, 0.19],
+  [3.37, 0.075, 0.12],
+  [4.79, 0.045, 0.07],
+  [6.55, 0.028, 0.04],
 ];
 const F0 = 540;
 
@@ -186,10 +215,19 @@ function buildKnock(ctx, dest, t, vel = 1, tone = {}) {
   const { detune = 1, body = 1, edge = 1 } = tone;
   const out = ctx.createGain();
   // 边缘音瞬态成分重，不按 edge 补偿回来会顶到 1.0 以上削波
-  out.gain.value = 0.6 * vel / (0.62 + 0.42 * edge);
+  out.gain.value = 0.72 * vel / (0.62 + 0.42 * edge);
   out.connect(dest);
 
-  // 各模态用衰减正弦谐振，能量和衰减时间才控得准
+  // 木头之所以听起来是木头：高频阻尼远大于低频，敲下去那一瞬亮，几十毫秒就闷掉。
+  // 少了这道扫下来的低通，同样的模态听着就是电子木琴。
+  const damp = ctx.createBiquadFilter();
+  damp.type = 'lowpass';
+  damp.Q.value = 0.6;
+  const open = 5200 * (0.7 + 0.5 * edge);
+  damp.frequency.setValueAtTime(open, t);
+  damp.frequency.exponentialRampToValueAtTime(1500 - 550 * body, t + 0.075);
+  damp.connect(out);
+
   MODES.forEach(([ratio, dur, amp], i) => {
     const f = F0 * ratio * detune;
     // 敲边缘时低模态被压住、高模态相对更突出，音色就从"笃"变成"嗒"
@@ -197,36 +235,58 @@ function buildKnock(ctx, dest, t, vel = 1, tone = {}) {
     const life = dur * (0.34 + 0.66 * body);
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(f * 1.06, t);              // 敲击瞬间张力略高，很快回落
-    osc.frequency.exponentialRampToValueAtTime(f, t + 0.03);
+    // 受击瞬间木材刚度非线性，音高冲高再落回——这个下滑是"敲"而不是"弹"的关键
+    osc.frequency.setValueAtTime(f * 1.14, t);
+    osc.frequency.exponentialRampToValueAtTime(f, t + 0.018);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(amp * w, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(amp * w, t + 0.002);
     g.gain.exponentialRampToValueAtTime(0.0001, t + life);
-    osc.connect(g).connect(out);
+    osc.connect(g).connect(damp);
     osc.start(t);
     osc.stop(t + life + 0.02);
+
+    // 每个模态配一份窄带噪声：木纤维的沙沙底噪，纯正弦没有这个就发假。
+    // 越高的模态噪声占比越大，因为高频那几支本来就更接近噪声而非正弦。
+    if (i < 4) {
+      // 噪声得比包络长，否则源播完了包络还在降，尾巴会凭空断掉
+      const n = excitation(ctx, 220, 0.6);
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = 9 - i * 1.5;
+      const ng = ctx.createGain();
+      const na = amp * w * (0.28 + 0.16 * i);
+      ng.gain.setValueAtTime(0.0001, t);
+      ng.gain.exponentialRampToValueAtTime(na, t + 0.002);
+      ng.gain.exponentialRampToValueAtTime(0.0001, t + life * 0.7);
+      n.connect(bp).connect(ng).connect(damp);
+      n.start(t);
+    }
   });
 
-  // 木质颗粒：带通噪声，让它不像纯电子正弦
-  const grain = excitation(ctx, 6, 2);
-  const bp = ctx.createBiquadFilter();
-  bp.type = 'bandpass'; bp.frequency.value = F0 * 1.5 * detune; bp.Q.value = 2.2;
-  const gg = ctx.createGain();
-  gg.gain.setValueAtTime(1.6, t);
-  gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
-  grain.connect(bp).connect(gg).connect(out);
-  grain.start(t);
-
-  // 槌头触木的"哒"：木头敲击必须有的高频瞬态，衰减平缓些才听得见
-  const click = excitation(ctx, 12, 0.8);
-  const hp = ctx.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = 2400 * (0.85 + 0.3 * edge);
+  // 槌头触木：木槌是木头不是塑料，这一下应该是"嗒"不是"啪"，
+  // 所以带通夹住而不是单纯高通——不然高频尖头会盖过木腔。
+  const click = excitation(ctx, 10, 1.1);
+  const cbp = ctx.createBiquadFilter();
+  cbp.type = 'bandpass';
+  cbp.frequency.value = 1750 * (0.85 + 0.35 * edge);
+  cbp.Q.value = 0.9;
   const cg = ctx.createGain();
-  cg.gain.setValueAtTime(1.1 * edge, t);
-  cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
-  click.connect(hp).connect(cg).connect(out);
+  cg.gain.setValueAtTime(1.35 * edge, t);
+  cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.026);
+  click.connect(cbp).connect(cg).connect(out);
   click.start(t);
+
+  // 木块被砸的箱体感：一记极低频短脉冲，音量小但少了它敲击不"实"
+  const thump = ctx.createOscillator();
+  thump.type = 'sine';
+  thump.frequency.setValueAtTime(150, t);
+  thump.frequency.exponentialRampToValueAtTime(78, t + 0.05);
+  const tg = ctx.createGain();
+  tg.gain.setValueAtTime(0.0001, t);
+  tg.gain.exponentialRampToValueAtTime(0.20 * body, t + 0.004);
+  tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
+  thump.connect(tg).connect(out);
+  thump.start(t); thump.stop(t + 0.12);
 
   return out;
 }
@@ -321,8 +381,86 @@ function playBell(ctx, dest) {
   });
 }
 
+/** 一滴水落进积水：极短的下滑正弦，尾巴带一点点混响就很像 */
+function playDrop(ctx, dest) {
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  const f = 620 + Math.random() * 900;
+  o.frequency.setValueAtTime(f * 1.9, t);
+  o.frequency.exponentialRampToValueAtTime(f * 0.75, t + 0.055);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.10 + Math.random() * 0.07, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+  o.connect(g).connect(dest);
+  o.start(t); o.stop(t + 0.18);
+}
+
+/** 一串风铃：三角波，几个不成谐的音一起响，长余韵 */
+function playChime(ctx, dest) {
+  const t0 = ctx.currentTime;
+  const base = [1174.66, 1318.51, 1567.98, 1760.00, 2093.00][Math.floor(Math.random() * 5)];
+  const n = 1 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) {
+    const t = t0 + i * (0.06 + Math.random() * 0.1);
+    const f = base * (i ? 1 + (Math.random() - 0.5) * 0.5 : 1);
+    [[1, 2.6, 0.055], [2.71, 1.5, 0.022], [4.1, 0.9, 0.010]].forEach(([r, dur, amp]) => {
+      const o = ctx.createOscillator();
+      o.type = 'triangle'; o.frequency.value = f * r;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(amp, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(dest);
+      o.start(t); o.stop(t + dur + 0.1);
+    });
+  }
+}
+
+/** 雨：白噪过低通就是雨，再叠一层带通的"沙"，用 LFO 让雨势有大小 */
+function buildRain(ctx, master, nodes) {
+  const t = ctx.currentTime;
+  const len = Math.floor(ctx.sampleRate * 3);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const ch = buf.getChannelData(c);
+    let last = 0, peak = 0;
+    for (let i = 0; i < len; i++) {
+      // 粉噪化：白噪太"嘶"，一阶积分压一下高频才像雨
+      last = (last + (Math.random() * 2 - 1) * 0.35) * 0.97;
+      ch[i] = last;
+      if (Math.abs(last) > peak) peak = Math.abs(last);
+    }
+    // 这个递归的直流增益是 1/(1-0.97) ≈ 33 倍，不归一化直接就削爆了
+    const norm = peak > 0 ? 0.25 / peak : 1;
+    for (let i = 0; i < len; i++) ch[i] *= norm;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf; src.loop = true;
+
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 2400; lp.Q.value = 0.4;
+  const hiss = ctx.createBiquadFilter();
+  hiss.type = 'bandpass'; hiss.frequency.value = 5200; hiss.Q.value = 0.7;
+  const hissGain = ctx.createGain(); hissGain.gain.value = 0.22;
+
+  const body = ctx.createGain(); body.gain.value = 0.85;
+  src.connect(lp).connect(body).connect(master);
+  src.connect(hiss).connect(hissGain).connect(master);
+
+  // 雨势起伏：极慢 LFO 扫低通，听感上就是一阵大一阵小
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.045;
+  const lfoGain = ctx.createGain(); lfoGain.gain.value = 700;
+  lfo.connect(lfoGain).connect(lp.frequency);
+
+  src.start(t); lfo.start(t);
+  nodes.push(src, lfo);
+}
+
+/** 按 cfg.bgm 起对应的背景音；off 或没设薪资就不响 */
 function startBGM() {
-  if (bgm || !cfg.music) return;
+  if (bgm || cfg.bgm === 'off') return;
   const ctx = audio();
   if (!ctx) return;
   const t = ctx.currentTime;
@@ -339,39 +477,48 @@ function startBGM() {
   bus.connect(master);
   bus.connect(wet);
 
-  // 低频持续音，托住整个空间
-  const drone = ctx.createGain();
-  drone.gain.value = 0.055;
-  drone.connect(master);
   const nodes = [];
-  [73.42, 110.0].forEach((f, i) => {
-    const o = ctx.createOscillator();
-    o.type = 'sine'; o.frequency.value = f;
-    const g = ctx.createGain(); g.gain.value = i ? 0.5 : 1;
-    // 极慢的音量起伏，像呼吸
-    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.035 + i * 0.014;
-    const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.35;
-    lfo.connect(lfoGain).connect(g.gain);
-    o.connect(g).connect(drone);
-    o.start(t); lfo.start(t);
-    nodes.push(o, lfo);
-  });
+  bgm = { master, bus, timers: [], nodes, kind: cfg.bgm };
 
-  bgm = { master, bus, timers: [], nodes };
+  // 低频持续音，托住整个空间。雨声自带铺底，不需要再压一层嗡嗡
+  if (cfg.bgm !== 'rain') {
+    const drone = ctx.createGain();
+    drone.gain.value = cfg.bgm === 'chime' ? 0.028 : 0.055;
+    drone.connect(master);
+    [73.42, 110.0].forEach((f, i) => {
+      const o = ctx.createOscillator();
+      o.type = 'sine'; o.frequency.value = f;
+      const g = ctx.createGain(); g.gain.value = i ? 0.5 : 1;
+      // 极慢的音量起伏，像呼吸
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.035 + i * 0.014;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.35;
+      lfo.connect(lfoGain).connect(g.gain);
+      o.connect(g).connect(drone);
+      o.start(t); lfo.start(t);
+      nodes.push(o, lfo);
+    });
+  }
 
-  const nextNote = () => {
-    if (!bgm) return;
-    playTone(ctx, SCALE[Math.floor(Math.random() * SCALE.length)],
-             5 + Math.random() * 3, 0.08 + Math.random() * 0.04, bgm.bus);
-    bgm.timers.push(setTimeout(nextNote, 5000 + Math.random() * 7000));
+  const every = (fn, min, span, first) => {
+    const tick = () => {
+      if (!bgm) return;
+      fn(ctx, bgm.bus);
+      bgm.timers.push(setTimeout(tick, min + Math.random() * span));
+    };
+    bgm.timers.push(setTimeout(tick, first));
   };
-  const nextBell = () => {
-    if (!bgm) return;
-    playBell(ctx, bgm.bus);
-    bgm.timers.push(setTimeout(nextBell, 45000 + Math.random() * 50000));
-  };
-  bgm.timers.push(setTimeout(nextNote, 1200));
-  bgm.timers.push(setTimeout(nextBell, 20000 + Math.random() * 25000));
+
+  if (cfg.bgm === 'zen') {
+    const note = () => playTone(ctx, SCALE[Math.floor(Math.random() * SCALE.length)],
+      5 + Math.random() * 3, 0.08 + Math.random() * 0.04, bgm.bus);
+    every(note, 5000, 7000, 1200);
+    every(playBell, 45000, 50000, 20000 + Math.random() * 25000);
+  } else if (cfg.bgm === 'rain') {
+    buildRain(ctx, master, nodes);
+    every(playDrop, 2600, 6000, 3000);          // 檐下滴水，疏落几声就够
+  } else if (cfg.bgm === 'chime') {
+    every(playChime, 6000, 11000, 900);
+  }
 }
 
 function stopBGM() {
@@ -451,7 +598,9 @@ const PHASE_NAMES = ['朔月', '蛾眉月', '上弦月', '盈凸月', '满月', 
  *  终结线是圆在斜光下的投影，所以是椭圆而不是圆——用两个圆去交是画不对月牙的。 */
 function moonPath(p, R = 48) {
   const d = Math.cos(2 * Math.PI * p);        // 1 朔 → -1 望
-  const rx = Math.abs(d) * R;
+  // 朔前后严格画就是一片全黑，屏幕上只剩个盘子很难看。留一道最细的牙
+  // （相当于把月龄 1 天画成 1.5 天的样子），拿一点准确度换画面。
+  const rx = Math.min(Math.abs(d), 0.93) * R;
   const right = p < 0.5;                      // 上半月亮面在右，下半月在左（北半球）
   const outer = right ? 1 : 0;
   const inner = ((d > 0) === right) ? 0 : 1;  // 蛾眉时终结线与外缘同侧弯，凸月时反向
@@ -466,6 +615,34 @@ function renderMoon() {
   moon.style.setProperty('--glow', (0.22 + 0.78 * lit).toFixed(3));
   moon.setAttribute('aria-label',
     `${PHASE_NAMES[Math.round(p * 8) % 8]}（月龄 ${(p * 29.53).toFixed(1)} 天）`);
+}
+
+// ── 场景 ──────────────────────────────────────
+// 四套主题共用一份 DOM，切换只改 body 上的 data-scene，CSS 负责谁露面。
+const THEME_COLOR = { moon: '#080d11', dusk: '#2a1a1f', bamboo: '#070f0a', rain: '#04090d' };
+
+function applyScene() {
+  document.body.dataset.scene = cfg.scene;
+  const meta = document.querySelector('meta[name=theme-color]');
+  if (meta) meta.content = THEME_COLOR[cfg.scene] || THEME_COLOR.moon;
+  if (cfg.scene === 'bamboo') makeLeaves();
+}
+
+/** 竹叶只在第一次进竹林时生成，别页面一开就挂 12 个动画在那空转 */
+function makeLeaves() {
+  const box = $('leaves');
+  if (box.childElementCount) return;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement('i');
+    p.style.left = (Math.random() * 100).toFixed(1) + '%';
+    p.style.setProperty('--dx', (Math.random() * 120 - 60).toFixed(0) + 'px');
+    p.style.animationDuration = (14 + Math.random() * 16).toFixed(0) + 's';
+    p.style.animationDelay = (-Math.random() * 26).toFixed(0) + 's';
+    p.style.opacity = (0.35 + Math.random() * 0.4).toFixed(2);
+    frag.appendChild(p);
+  }
+  box.appendChild(frag);
 }
 
 // ── 木槌跟随指针 ──────────────────────────────
@@ -579,7 +756,8 @@ function openSheet() {
   $('inLunchStart').value = cfg.lunchStart;
   $('inLunchEnd').value = cfg.lunchEnd;
   $('inSound').checked = cfg.sound;
-  $('inMusic').checked = cfg.music;
+  markPicker('scenePicker', cfg.scene);
+  markPicker('bgmPicker', cfg.bgm);
   document.querySelectorAll('#weekPicker button').forEach(b =>
     b.classList.toggle('on', cfg.week.includes(+b.dataset.d)));
   syncLunchRow();
@@ -597,6 +775,15 @@ function syncLunchRow() {
   $('lunchRow').classList.toggle('off', !$('inLunchOn').checked);
 }
 
+/** 分段选择器：一组按钮里点亮一个 */
+function markPicker(id, value) {
+  document.querySelectorAll(`#${id} button`).forEach(b =>
+    b.classList.toggle('on', b.dataset.v === value));
+}
+function pickerValue(id, fallback) {
+  return document.querySelector(`#${id} button.on`)?.dataset.v || fallback;
+}
+
 function readForm() {
   return {
     salary: parseFloat($('inSalary').value) || 0,
@@ -608,7 +795,8 @@ function readForm() {
     lunchEnd: $('inLunchEnd').value || '13:00',
     week: [...document.querySelectorAll('#weekPicker button.on')].map(b => +b.dataset.d),
     sound: $('inSound').checked,
-    music: $('inMusic').checked,
+    scene: pickerValue('scenePicker', cfg.scene),
+    bgm: pickerValue('bgmPicker', cfg.bgm),
   };
 }
 
@@ -695,6 +883,21 @@ $('sheet').addEventListener('input', previewCalc);
 document.querySelectorAll('#weekPicker button').forEach(b =>
   b.addEventListener('click', () => { b.classList.toggle('on'); previewCalc(); }));
 
+// 场景与背景音即时生效：挑主题这种事，得当场看见听见才知道要不要
+document.querySelectorAll('#scenePicker button').forEach(b =>
+  b.addEventListener('click', () => {
+    markPicker('scenePicker', b.dataset.v);
+    cfg.scene = b.dataset.v;
+    applyScene();
+  }));
+document.querySelectorAll('#bgmPicker button').forEach(b =>
+  b.addEventListener('click', () => {
+    markPicker('bgmPicker', b.dataset.v);
+    cfg.bgm = b.dataset.v;
+    stopBGM();
+    if (cfg.bgm !== 'off') setTimeout(startBGM, 60);   // 等上一套淡出，别叠在一起
+  }));
+
 $('btnSave').addEventListener('click', () => {
   const c = readForm();
   if (c.salary <= 0) return toast('先填个月薪吧');
@@ -704,7 +907,7 @@ $('btnSave').addEventListener('click', () => {
   save();
   closeSheet();
   render();
-  cfg.music ? startBGM() : stopBGM();
+  applyScene();
   toast('已保存，开始摸鱼');
 });
 
@@ -727,16 +930,10 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Escape') closeSheet();
 });
 
-// 背景音开关即时生效（不用等保存）
-$('inMusic').addEventListener('change', e => {
-  cfg.music = e.target.checked;
-  cfg.music ? startBGM() : stopBGM();
-});
-
 // 页面回到前台时刷新；切走就停背景音，别在后台白耗电
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopBGM();
-  else { render(); renderMoon(); if (cfg.music && cfg.salary) startBGM(); }
+  else { render(); renderMoon(); if (cfg.bgm !== 'off' && cfg.salary) startBGM(); }
 });
 
 // 停靠位按木鱼实际尺寸算，尺寸变了要重算
@@ -763,8 +960,9 @@ aimMallet(null);
 })();
 
 // 浏览器不允许无交互自动播放，等第一次点击/触摸再起背景音
-addEventListener('pointerdown', () => { if (cfg.music && cfg.salary) startBGM(); }, { once: true });
+addEventListener('pointerdown', () => { if (cfg.bgm !== 'off' && cfg.salary) startBGM(); }, { once: true });
 
+applyScene();
 render();
 setInterval(render, 200);
 renderMoon();

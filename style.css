@@ -21,9 +21,6 @@ body{
   margin:0;
   font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
   color:var(--ink);
-  background:
-    radial-gradient(120% 90% at 72% 4%,#22323d 0%,#131e26 42%,transparent 74%),
-    linear-gradient(180deg,#0c141a 0%,#080d11 58%,#05080b 100%);
   display:flex;flex-direction:column;
   overflow:hidden;
   overscroll-behavior:none;
@@ -31,14 +28,135 @@ body{
   user-select:none;
 }
 
-/* ── 月夜远山 ───────────────────── */
+/* ── 场景：四套主题共用一套图层，靠 data-scene 决定谁露面 ───────── */
 .scene{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+/* 默认全部藏起来，各场景再点亮自己那几层；1.2s 交叉淡入淡出 */
+.moon,.mist,.sun,.clouds,.grove,.leaves,.rain-far,.rain-near,.puddle{
+  opacity:0;transition:opacity 1.2s ease;
+}
+body[data-scene=moon] .moon,
+body[data-scene=moon] .mist{opacity:1}
+body[data-scene=moon] .moon{opacity:.82}
+body[data-scene=dusk] .sun,
+body[data-scene=dusk] .clouds{opacity:1}
+body[data-scene=bamboo] .grove,
+body[data-scene=bamboo] .leaves,
+body[data-scene=bamboo] .mist{opacity:1}
+body[data-scene=rain] .rain-far,
+body[data-scene=rain] .rain-near,
+body[data-scene=rain] .puddle,
+body[data-scene=rain] .mist{opacity:1}
+/* 竹林是抬头看竹，没有远山地平线 */
+body[data-scene=bamboo] .hills{opacity:0}
+.hills{transition:opacity 1.2s ease}
+body{transition:background 1.2s ease}
+
+/* 四套配色。--hill-* 让同一组山影在不同天色下重新着色 */
+body,body[data-scene=moon]{
+  background:
+    radial-gradient(120% 90% at 72% 4%,#22323d 0%,#131e26 42%,transparent 74%),
+    linear-gradient(180deg,#0c141a 0%,#080d11 58%,#05080b 100%);
+  --hill-a:#1b2c36;--hill-b:#131f27;--hill-c:#0b1319;
+}
+body[data-scene=dusk]{
+  background:
+    radial-gradient(78% 52% at 50% 74%,rgba(255,150,80,.42) 0%,transparent 68%),
+    linear-gradient(180deg,#241d3a 0%,#4a2b3c 44%,#6b3a35 72%,#2a1a1f 100%);
+  --hill-a:#553a55;--hill-b:#372340;--hill-c:#1d1226;
+}
+body[data-scene=bamboo]{
+  background:
+    radial-gradient(96% 74% at 50% 2%,#31513e 0%,#16261f 46%,transparent 78%),
+    linear-gradient(180deg,#16241a 0%,#0d1712 60%,#070f0a 100%);
+  --hill-a:#1d3126;--hill-b:#152419;--hill-c:#0b1310;
+}
+body[data-scene=rain]{
+  background:
+    radial-gradient(120% 88% at 50% 0%,#1c3044 0%,#101c28 46%,transparent 78%),
+    linear-gradient(180deg,#0a141c 0%,#070f15 60%,#04090d 100%);
+  --hill-a:#16242f;--hill-b:#101a22;--hill-c:#070d12;
+}
+
+/* ── 暮色：夕阳沉在山后 ─────────── */
+.sun{
+  /* 一半沉进山脊，才有落日的意思；整个埋在山后就白画了 */
+  position:absolute;left:24%;top:47%;transform:translate(-50%,-50%);
+  width:130px;height:130px;border-radius:50%;
+  background:radial-gradient(circle,#ffe0ac 0%,#ffab63 42%,#e9713f 68%,rgba(233,113,63,0) 72%);
+  box-shadow:0 0 90px 26px rgba(255,150,80,.20),0 0 210px 90px rgba(255,110,60,.10);
+  animation:sunBreath 14s ease-in-out infinite alternate;
+}
+@keyframes sunBreath{from{filter:brightness(1)}to{filter:brightness(1.12)}}
+.clouds{position:absolute;inset:0}
+.cloud{
+  position:absolute;height:16px;border-radius:50%;filter:blur(5px);
+  background:linear-gradient(90deg,transparent,rgba(255,196,152,.34) 35%,rgba(255,214,180,.42) 55%,transparent);
+  animation:cloudDrift linear infinite;
+}
+.cloud.c1{top:34%;width:64%;left:-64%;animation-duration:150s}
+.cloud.c2{top:44%;width:48%;left:-48%;height:11px;opacity:.7;animation-duration:210s;animation-delay:-70s}
+.cloud.c3{top:27%;width:38%;left:-38%;height:9px;opacity:.5;animation-duration:270s;animation-delay:-140s}
+@keyframes cloudDrift{to{transform:translateX(280%)}}
+
+/* ── 竹林：分层竹影，风过时轻摆 ──── */
+.grove{position:absolute;inset:0}
+.culm{
+  position:absolute;top:-12%;bottom:-6%;left:var(--x);width:var(--w);
+  /* 竖向柱面高光 + 横向竹节，一个元素画完一根竹子 */
+  background:
+    repeating-linear-gradient(180deg,transparent 0 62px,rgba(0,0,0,.55) 62px 65px,transparent 65px 68px),
+    linear-gradient(90deg,rgba(0,0,0,.72),rgba(150,190,140,.30) 42%,rgba(0,0,0,.66));
+  opacity:calc(.16 + .42 * var(--z));       /* 压暗一点，别抢木鱼 */
+  filter:blur(calc((1 - var(--z)) * 1.6px));      /* 远的竹子虚一点，景深 */
+  transform-origin:50% 100%;
+  animation:sway 11s ease-in-out infinite alternate;
+  animation-delay:var(--t);
+}
+@keyframes sway{from{transform:rotate(-.5deg)}to{transform:rotate(.5deg)}}
+.leaves{position:absolute;inset:0}
+.leaves i{
+  position:absolute;top:-6%;width:9px;height:4px;border-radius:60% 10% 60% 10%;
+  background:rgba(150,196,140,.5);
+  animation:leafFall linear infinite;
+}
+@keyframes leafFall{
+  0%{opacity:0;transform:translate(0,0) rotate(0)}
+  10%{opacity:.75}
+  90%{opacity:.5}
+  100%{opacity:0;transform:translate(var(--dx),110vh) rotate(540deg)}
+}
+
+/* ── 雨夜：两层雨幕错速，近处更粗更快 ── */
+.rain-far,.rain-near{position:absolute;inset:-10%}
+/* 两层间距故意取质数倍关系并各自倾斜，等间距条纹叠在一起会像百叶窗 */
+.rain-far{
+  background-image:repeating-linear-gradient(107deg,transparent 0 11px,rgba(174,206,232,.09) 11px 12px);
+  background-size:180px 180px;
+  filter:blur(.4px);
+  animation:rainMove 1.05s linear infinite;
+}
+.rain-near{
+  background-image:
+    repeating-linear-gradient(99deg,transparent 0 23px,rgba(206,230,250,.15) 23px 25px),
+    repeating-linear-gradient(103deg,transparent 0 17px,rgba(190,220,245,.10) 17px 18px);
+  background-size:240px 240px;
+  filter:blur(.3px);
+  animation:rainMove2 .62s linear infinite;
+}
+@keyframes rainMove{to{background-position:-180px 180px}}
+@keyframes rainMove2{to{background-position:-240px 240px}}
+.puddle{
+  position:absolute;left:0;right:0;bottom:0;height:26%;
+  background:linear-gradient(180deg,transparent,rgba(140,190,225,.09) 60%,rgba(170,210,240,.15));
+  animation:puddleShine 7s ease-in-out infinite alternate;
+}
+@keyframes puddleShine{from{opacity:.7}to{opacity:1}}
 
 /* 月相由 JS 按月龄画成 SVG 路径，--glow 是当前照亮比例（朔暗望亮） */
 .moon{
-  position:absolute;top:9.5%;right:13%;     /* 避开右上角的设置按钮 */
-  width:46px;height:46px;
-  opacity:.82;
+  position:absolute;top:10.5%;right:13%;    /* 避开右上角的设置按钮 */
+  width:54px;height:54px;
+  /* 不在这里写 opacity：得让上面的场景规则说了算，否则别的场景关不掉月亮 */
   animation:moonDrift 200s ease-in-out infinite alternate;
 }
 /* 光晕单独一层：月牙时该弱下去，不然缺了一半还照得满天亮 */
@@ -51,8 +169,8 @@ body{
     0 0 190px 70px rgba(110,150,180,.05);
 }
 .moon svg{position:relative;width:100%;height:100%;display:block;overflow:visible}
-/* 暗部不是全黑：地照让轮廓在夜空里若隐若现 */
-.moon .dark{fill:#8fa6b4;opacity:.10}
+/* 边缘柔化+贴边辉光：月牙细到一两像素时，硬边会显得像描线而不是月亮 */
+.moon #moonLit{filter:blur(.4px) drop-shadow(0 0 2.5px rgba(255,252,240,.75))}
 @keyframes moonDrift{from{transform:translate(0,0)}to{transform:translate(-26px,16px)}}
 
 /* 雾：用渐变而不是 filter:blur，省 GPU */
@@ -71,9 +189,9 @@ body{
 
 .hills{position:absolute;left:0;right:0;bottom:0;width:100%;height:52%;display:block}
 /* 越远越亮（空气透视），层与层之间要拉得开，不然夜色里糊成一片 */
-.hill-far {fill:#1b2c36}
-.hill-mid {fill:#131f27}
-.hill-near{fill:#0b1319}
+.hill-far {fill:var(--hill-a)}
+.hill-mid {fill:var(--hill-b)}
+.hill-near{fill:var(--hill-c)}
 
 /* 浮尘：JS 生成，缓慢上浮 */
 .dust{position:absolute;inset:0}
@@ -313,6 +431,15 @@ body.is-full #btnFull .ic-out{display:block}
   transition:all .2s;font-family:inherit;
 }
 .week button.on{background:rgba(232,182,97,.16);border-color:var(--gold-soft);color:var(--gold)}
+
+/* 分段选择：场景与背景音 */
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.seg button{
+  padding:11px 4px;border-radius:10px;border:1px solid var(--line);
+  background:rgba(0,0,0,.3);color:var(--ink-dim);font-size:13px;cursor:pointer;
+  font-family:inherit;letter-spacing:.06em;transition:all .2s;
+}
+.seg button.on{background:rgba(232,182,97,.16);border-color:var(--gold-soft);color:var(--gold)}
 
 .audio-note{
   margin:2px 0 0;font-size:11.5px;line-height:1.7;
