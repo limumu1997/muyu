@@ -21,6 +21,7 @@ const DEFAULT_CFG = {
   lunchEnd: '13:00',
   week: [1, 2, 3, 4, 5],
   sound: true,
+  music: true,
 };
 
 let cfg = load('muyu.cfg', DEFAULT_CFG);
@@ -207,13 +208,147 @@ function buildKnock(ctx, dest, t, vel = 1, detune = 1) {
   return out;
 }
 
+/** 拿到（必要时创建）音频上下文；浏览器要求先有用户交互 */
+function audio() {
+  if (!ac) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ac = new AC();
+  }
+  if (ac.state === 'suspended') ac.resume();
+  return ac;
+}
+
 function knockSound(vel = 1) {
   if (!cfg.sound) return;
   try {
-    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-    if (ac.state === 'suspended') ac.resume();
-    buildKnock(ac, ac.destination, ac.currentTime, vel, 0.97 + Math.random() * 0.06);
+    const ctx = audio();
+    if (ctx) buildKnock(ctx, ctx.destination, ctx.currentTime, vel, 0.97 + Math.random() * 0.06);
   } catch { /* 音频不可用就静默 */ }
+}
+
+// ── 禅意背景音：drone + 五声音阶随机音 + 偶尔一记磬 ──────────
+// 同样是现场合成，不引任何音频文件。
+const SCALE = [293.66, 329.63, 369.99, 440.00, 493.88, 587.33];  // D 宫五声：宫商角徵羽
+let bgm = null;
+
+/** 程序生成混响脉冲响应——没有它，合成音会干得像电子琴 */
+function makeReverb(ctx, seconds = 3.2, decay = 2.4) {
+  const len = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const ch = buf.getChannelData(c);
+    for (let i = 0; i < len; i++) {
+      ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
+  const conv = ctx.createConvolver();
+  conv.buffer = buf;
+  return conv;
+}
+
+/** 一记柔和的长音 */
+function playTone(ctx, freq, dur, amp, dest) {
+  const t = ctx.currentTime;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(amp, t + 0.9);      // 慢起音，不突兀
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.connect(dest);
+  [[freq, 'sine', 1], [freq * 2.002, 'sine', 0.22], [freq * 3, 'triangle', 0.06]]
+    .forEach(([f, type, a]) => {
+      const o = ctx.createOscillator();
+      o.type = type; o.frequency.value = f;
+      const og = ctx.createGain(); og.gain.value = a;
+      o.connect(og).connect(g);
+      o.start(t); o.stop(t + dur + 0.1);
+    });
+}
+
+/** 一记磬：高频、模态、长余韵 */
+function playBell(ctx, dest) {
+  const t = ctx.currentTime;
+  const f0 = 880 * (0.98 + Math.random() * 0.04);
+  [[1, 3.4, 0.20], [2.76, 2.2, 0.09], [5.4, 1.4, 0.04]].forEach(([r, dur, amp]) => {
+    const o = ctx.createOscillator();
+    o.type = 'sine'; o.frequency.value = f0 * r;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(amp, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(dest);
+    o.start(t); o.stop(t + dur + 0.1);
+  });
+}
+
+function startBGM() {
+  if (bgm || !cfg.music) return;
+  const ctx = audio();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.0001, t);
+  master.gain.linearRampToValueAtTime(0.5, t + 5);        // 5 秒淡入，别吓人
+  master.connect(ctx.destination);
+
+  const wet = makeReverb(ctx);
+  const wetGain = ctx.createGain(); wetGain.gain.value = 0.55;
+  wet.connect(wetGain).connect(master);
+  const bus = ctx.createGain();                            // 干湿都走
+  bus.connect(master);
+  bus.connect(wet);
+
+  // 低频持续音，托住整个空间
+  const drone = ctx.createGain();
+  drone.gain.value = 0.055;
+  drone.connect(master);
+  const nodes = [];
+  [73.42, 110.0].forEach((f, i) => {
+    const o = ctx.createOscillator();
+    o.type = 'sine'; o.frequency.value = f;
+    const g = ctx.createGain(); g.gain.value = i ? 0.5 : 1;
+    // 极慢的音量起伏，像呼吸
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.035 + i * 0.014;
+    const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.35;
+    lfo.connect(lfoGain).connect(g.gain);
+    o.connect(g).connect(drone);
+    o.start(t); lfo.start(t);
+    nodes.push(o, lfo);
+  });
+
+  bgm = { master, bus, timers: [], nodes };
+
+  const nextNote = () => {
+    if (!bgm) return;
+    playTone(ctx, SCALE[Math.floor(Math.random() * SCALE.length)],
+             5 + Math.random() * 3, 0.08 + Math.random() * 0.04, bgm.bus);
+    bgm.timers.push(setTimeout(nextNote, 5000 + Math.random() * 7000));
+  };
+  const nextBell = () => {
+    if (!bgm) return;
+    playBell(ctx, bgm.bus);
+    bgm.timers.push(setTimeout(nextBell, 45000 + Math.random() * 50000));
+  };
+  bgm.timers.push(setTimeout(nextNote, 1200));
+  bgm.timers.push(setTimeout(nextBell, 20000 + Math.random() * 25000));
+}
+
+function stopBGM() {
+  if (!bgm) return;
+  const b = bgm;
+  bgm = null;
+  b.timers.forEach(clearTimeout);
+  try {
+    const t = ac.currentTime;
+    b.master.gain.cancelScheduledValues(t);
+    b.master.gain.setValueAtTime(b.master.gain.value, t);
+    b.master.gain.linearRampToValueAtTime(0.0001, t + 1.5);   // 淡出，别咔一声
+    setTimeout(() => {
+      b.nodes.forEach(n => { try { n.stop(); } catch {} });    // 常驻振荡器必须停，否则白烧 CPU
+      try { b.master.disconnect(); } catch {}
+    }, 1800);
+  } catch { /* ignore */ }
 }
 
 // ── 渲染 ──────────────────────────────────────
@@ -367,6 +502,7 @@ function openSheet() {
   $('inLunchStart').value = cfg.lunchStart;
   $('inLunchEnd').value = cfg.lunchEnd;
   $('inSound').checked = cfg.sound;
+  $('inMusic').checked = cfg.music;
   document.querySelectorAll('#weekPicker button').forEach(b =>
     b.classList.toggle('on', cfg.week.includes(+b.dataset.d)));
   syncLunchRow();
@@ -395,6 +531,7 @@ function readForm() {
     lunchEnd: $('inLunchEnd').value || '13:00',
     week: [...document.querySelectorAll('#weekPicker button.on')].map(b => +b.dataset.d),
     sound: $('inSound').checked,
+    music: $('inMusic').checked,
   };
 }
 
@@ -451,6 +588,7 @@ $('btnSave').addEventListener('click', () => {
   save();
   closeSheet();
   render();
+  cfg.music ? startBGM() : stopBGM();
   toast('已保存，开始摸鱼');
 });
 
@@ -473,14 +611,44 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Escape') closeSheet();
 });
 
-// 页面回到前台时立刻刷新（补上后台期间的累积）
-document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+// 背景音开关即时生效（不用等保存）
+$('inMusic').addEventListener('change', e => {
+  cfg.music = e.target.checked;
+  cfg.music ? startBGM() : stopBGM();
+});
+
+// 页面回到前台时刷新；切走就停背景音，别在后台白耗电
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopBGM();
+  else { render(); if (cfg.music && cfg.salary) startBGM(); }
+});
 
 // 停靠位按木鱼实际尺寸算，尺寸变了要重算
 addEventListener('resize', () => { if (!mallet.classList.contains('follow')) aimMallet(null); });
 aimMallet(null);
 
 // ── 启动 ──────────────────────────────────────
+// 浮尘：数量克制，纯 CSS 动画，静止时不占 JS
+(() => {
+  const box = $('dust');
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 16; i++) {
+    const p = document.createElement('i');
+    const s = (1 + Math.random() * 2.2).toFixed(1);
+    p.style.width = p.style.height = s + 'px';
+    p.style.left = (Math.random() * 100).toFixed(1) + '%';
+    p.style.setProperty('--dx', (Math.random() * 90 - 45).toFixed(0) + 'px');
+    p.style.setProperty('--dy', (55 + Math.random() * 50).toFixed(0) + 'vh');
+    p.style.animationDuration = (28 + Math.random() * 34).toFixed(0) + 's';
+    p.style.animationDelay = (-Math.random() * 50).toFixed(0) + 's';
+    frag.appendChild(p);
+  }
+  box.appendChild(frag);
+})();
+
+// 浏览器不允许无交互自动播放，等第一次点击/触摸再起背景音
+addEventListener('pointerdown', () => { if (cfg.music && cfg.salary) startBGM(); }, { once: true });
+
 render();
 setInterval(render, 200);
 if (!cfg.salary) setTimeout(openSheet, 600);

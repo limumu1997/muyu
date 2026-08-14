@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#12100e">
+<meta name="theme-color" content="#080d11">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>赛博木鱼 · 功德即工资</title>
@@ -12,6 +12,19 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪘</text></svg>">
 </head>
 <body>
+
+<!-- 月夜远山：全部 CSS/SVG，无外部图片 -->
+<div class="scene" aria-hidden="true">
+  <div class="moon"></div>
+  <div class="mist mist-a"></div>
+  <div class="mist mist-b"></div>
+  <svg class="hills" viewBox="0 0 1200 420" preserveAspectRatio="none">
+    <path class="hill-far"  d="M0 300 C 120 250 200 268 300 240 C 420 206 500 250 620 224 C 740 198 830 236 950 212 C 1060 190 1140 214 1200 200 L1200 420 L0 420 Z"/>
+    <path class="hill-mid"  d="M0 340 C 100 306 190 320 300 296 C 430 268 520 306 640 288 C 780 266 860 296 980 280 C 1090 266 1150 282 1200 274 L1200 420 L0 420 Z"/>
+    <path class="hill-near" d="M0 384 C 140 362 240 372 360 356 C 500 338 600 362 720 350 C 860 336 960 354 1080 344 C 1140 340 1180 344 1200 342 L1200 420 L0 420 Z"/>
+  </svg>
+  <div class="dust" id="dust"></div>
+</div>
 
 <div class="grain"></div>
 
@@ -40,6 +53,7 @@
   <div class="fish-wrap">
     <div class="halo" id="halo"></div>
     <button class="fish-btn" id="fish" aria-label="敲木鱼">
+      <div class="fish-body">
       <svg viewBox="0 0 240 200" class="fish-svg" aria-hidden="true">
         <defs>
           <radialGradient id="gBody" cx="38%" cy="30%" r="78%">
@@ -83,7 +97,13 @@
         <ellipse cx="86" cy="76" rx="34" ry="19" fill="url(#gShine)" opacity=".55" transform="rotate(-16 86 76)"/>
         <ellipse cx="70" cy="70" rx="12" ry="6" fill="#ffeccb" opacity=".22" transform="rotate(-22 70 70)"/>
         <path d="M158 52c26 8 42 22 48 40-16-18-32-30-52-34z" fill="#e0a563" opacity=".22"/>
+        <!-- 月光在右上缘的冷色轮廓光，把木鱼从夜色里拎出来 -->
+        <path d="M120 44c52 0 88 26 88 62" fill="none" stroke="#bcd8e8" stroke-width="2.5"
+              opacity=".28" stroke-linecap="round"/>
+        <path d="M62 74c14-16 34-26 58-29" fill="none" stroke="#9fc2d6" stroke-width="2"
+              opacity=".12" stroke-linecap="round"/>
       </svg>
+      </div>
       <div class="mallet" id="mallet">
         <!-- 柄朝向观察者：近端（握手处）粗、远端接槌头细，做出近大远小 -->
         <svg viewBox="0 0 76 216" aria-hidden="true">
@@ -177,6 +197,12 @@
   <label class="switch-row">
     <span class="field-label">敲击音效</span>
     <input type="checkbox" id="inSound" checked>
+    <span class="switch"></span>
+  </label>
+
+  <label class="switch-row">
+    <span class="field-label">禅意背景音</span>
+    <input type="checkbox" id="inMusic" checked>
     <span class="switch"></span>
   </label>
 

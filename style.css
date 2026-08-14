@@ -1,13 +1,13 @@
 :root{
-  --bg:#12100e;
-  --bg2:#1b1713;
-  --ink:#f2e7d5;
-  --ink-dim:#a2917a;
+  --bg:#080d11;
+  --bg2:#111a20;
+  --ink:#e9eef1;
+  --ink-dim:#8397a3;
   --gold:#e8b661;
   --gold-soft:#c9954a;
   --line:rgba(232,182,97,.16);
   --ok:#7fbf7f;
-  --off:#7a6b58;
+  --off:#54646e;
   --radius:18px;
   --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
   --serif:"Songti SC","Noto Serif CJK SC","Source Han Serif SC",serif;
@@ -20,13 +20,62 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
   color:var(--ink);
   background:
-    radial-gradient(120% 80% at 50% -10%,#2a2119 0%,transparent 60%),
-    radial-gradient(90% 60% at 50% 110%,#241c14 0%,transparent 55%),
-    var(--bg);
+    radial-gradient(120% 90% at 72% 4%,#22323d 0%,#131e26 42%,transparent 74%),
+    linear-gradient(180deg,#0c141a 0%,#080d11 58%,#05080b 100%);
   min-height:100dvh;
   display:flex;flex-direction:column;
   overflow:hidden;
   user-select:none;
+}
+
+/* ── 月夜远山 ───────────────────── */
+.scene{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+
+.moon{
+  position:absolute;top:9.5%;right:13%;     /* 避开右上角的设置按钮 */
+  width:46px;height:46px;border-radius:50%;
+  background:radial-gradient(circle at 38% 34%,#f4f1e6 0%,#dcdccf 52%,#b9beb7 100%);
+  opacity:.82;
+  box-shadow:
+    0 0 26px 4px rgba(226,232,222,.13),
+    0 0 90px 26px rgba(170,200,218,.09),
+    0 0 190px 70px rgba(110,150,180,.05);
+  animation:moonDrift 200s ease-in-out infinite alternate;
+}
+@keyframes moonDrift{from{transform:translate(0,0)}to{transform:translate(-26px,16px)}}
+
+/* 雾：用渐变而不是 filter:blur，省 GPU */
+.mist{position:absolute;left:-25%;width:150%;pointer-events:none}
+.mist-a{
+  bottom:20%;height:190px;
+  background:radial-gradient(60% 100% at 50% 50%,rgba(168,196,214,.10) 0%,transparent 70%);
+  animation:drift 96s linear infinite;
+}
+.mist-b{
+  bottom:9%;height:150px;
+  background:radial-gradient(55% 100% at 50% 50%,rgba(190,210,225,.075) 0%,transparent 72%);
+  animation:drift 148s linear infinite reverse;
+}
+@keyframes drift{from{transform:translateX(-9%)}to{transform:translateX(9%)}}
+
+.hills{position:absolute;left:0;right:0;bottom:0;width:100%;height:52%;display:block}
+/* 越远越亮（空气透视），层与层之间要拉得开，不然夜色里糊成一片 */
+.hill-far {fill:#1b2c36}
+.hill-mid {fill:#131f27}
+.hill-near{fill:#0b1319}
+
+/* 浮尘：JS 生成，缓慢上浮 */
+.dust{position:absolute;inset:0}
+.dust i{
+  position:absolute;bottom:-8px;border-radius:50%;
+  background:rgba(214,232,240,.5);
+  animation:float linear infinite;
+}
+@keyframes float{
+  0%{opacity:0;transform:translate(0,0)}
+  12%{opacity:.7}
+  88%{opacity:.5}
+  100%{opacity:0;transform:translate(var(--dx),calc(-1 * var(--dy)))}
 }
 
 .grain{
@@ -35,6 +84,7 @@ body{
 }
 
 /* ── 顶栏 ───────────────────────── */
+.topbar,.stage{position:relative;z-index:1}
 .topbar{
   display:flex;align-items:center;justify-content:space-between;
   padding:calc(env(safe-area-inset-top) + 14px) 18px 6px;
@@ -96,17 +146,25 @@ body{
 .fish-btn{
   position:relative;background:none;border:none;padding:0;cursor:pointer;
   width:min(78vw,340px);display:block;cursor:none;
-  filter:drop-shadow(0 18px 30px rgba(0,0,0,.5));
+  filter:drop-shadow(0 16px 26px rgba(0,0,0,.34));
   transition:transform .09s cubic-bezier(.3,.8,.4,1);
 }
+/* 极慢的呼吸浮动，独立一层，免得和敲击动画抢 transform */
+.fish-body{animation:breathe 9.5s ease-in-out infinite}
+@keyframes breathe{
+  0%,100%{transform:perspective(900px) translateY(0) rotateX(0deg)}
+  50%    {transform:perspective(900px) translateY(-5px) rotateX(1.6deg)}
+}
+
 .fish-svg{width:100%;height:auto;display:block;transform-origin:50% 82%}
 .fish-btn.hit .fish-svg{animation:thump .42s cubic-bezier(.3,1.3,.5,1)}
+/* 受击：不只是压扁，还沿 X 轴翻转一下，像被砸得往后仰 */
 @keyframes thump{
-  0%{transform:translateY(0) scale(1,1)}
-  16%{transform:translateY(6px) scale(1.075,.87)}
-  42%{transform:translateY(-3px) scale(.975,1.05)}
-  68%{transform:translateY(2px) scale(1.015,.985)}
-  100%{transform:translateY(0) scale(1,1)}
+  0%{transform:perspective(800px) translateY(0) rotateX(0deg) scale(1,1)}
+  16%{transform:perspective(800px) translateY(7px) rotateX(-8deg) scale(1.08,.86)}
+  42%{transform:perspective(800px) translateY(-3px) rotateX(4deg) scale(.972,1.055)}
+  68%{transform:perspective(800px) translateY(2px) rotateX(-1.5deg) scale(1.018,.983)}
+  100%{transform:perspective(800px) translateY(0) rotateX(0deg) scale(1,1)}
 }
 
 /* 木槌 = 光标。--mx/--my 是槌头要落到的点（相对 .fish-btn） */
@@ -121,17 +179,19 @@ body{
 }
 .mallet.follow{transition:transform .07s linear}
 /* 槌身绕槌头旋转。柄朝向观察者：从槌头指向右下方，像自己握着槌在敲。 */
+/* rotateX 让槌沿自身长轴朝观察者倾，配合柄的近粗远细，立体感来自这里 */
 .mallet svg{
   width:100%;height:auto;display:block;
-  transform-origin:50% 86%;transform:rotate(158deg);
+  transform-origin:50% 86%;
+  transform:perspective(620px) rotate(158deg) rotateX(-16deg);
 }
 .mallet.strike svg{animation:strike .3s cubic-bezier(.25,1,.4,1)}
 @keyframes strike{
-  0%{transform:translateY(-22px) rotate(146deg)}   /* 抬起，手腕带着柄扬开 */
-  24%{transform:translateY(16px) rotate(164deg)}   /* 落到指针点，接触 */
-  46%{transform:translateY(4px) rotate(154deg)}    /* 反弹 */
-  70%{transform:translateY(8px) rotate(160deg)}
-  100%{transform:translateY(0) rotate(158deg)}     /* 回到悬停 */
+  0%{transform:perspective(620px) translateY(-22px) rotate(146deg) rotateX(-30deg)}  /* 抬起、后仰 */
+  24%{transform:perspective(620px) translateY(16px) rotate(164deg) rotateX(-6deg)}   /* 落到指针点 */
+  46%{transform:perspective(620px) translateY(4px) rotate(154deg) rotateX(-20deg)}   /* 反弹 */
+  70%{transform:perspective(620px) translateY(8px) rotate(160deg) rotateX(-13deg)}
+  100%{transform:perspective(620px) translateY(0) rotate(158deg) rotateX(-16deg)}
 }
 
 /* 敲击涟漪 */
@@ -167,7 +227,7 @@ body{
   background:var(--line);border:1px solid var(--line);border-radius:var(--radius);
   overflow:hidden;flex:0 0 auto;
 }
-.stat{background:rgba(27,23,19,.85);padding:13px 6px;text-align:center}
+.stat{background:rgba(14,22,28,.82);padding:13px 6px;text-align:center}
 .stat-num{font-family:var(--mono);font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums}
 .stat-label{font-size:10.5px;color:var(--ink-dim);margin-top:4px;letter-spacing:.16em}
 
@@ -184,7 +244,7 @@ body{
 .sheet-mask.show{opacity:1;pointer-events:auto}
 .sheet{
   position:fixed;left:0;right:0;bottom:0;z-index:101;
-  background:linear-gradient(180deg,#221c16,#171310);
+  background:linear-gradient(180deg,#16222a,#0c1318);
   border-top:1px solid var(--line);
   border-radius:24px 24px 0 0;
   padding:10px 22px calc(env(safe-area-inset-bottom) + 22px);
@@ -256,7 +316,7 @@ body{
 .toast{
   position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 28px);
   transform:translate(-50%,20px);z-index:200;
-  background:rgba(34,28,22,.96);border:1px solid var(--line);
+  background:rgba(18,28,35,.96);border:1px solid var(--line);
   color:var(--ink);padding:11px 20px;border-radius:24px;font-size:13.5px;
   opacity:0;transition:opacity .28s,transform .28s;pointer-events:none;
   backdrop-filter:blur(8px);
