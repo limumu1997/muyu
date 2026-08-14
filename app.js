@@ -263,18 +263,34 @@ function render() {
 const mallet = $('mallet');
 const fishBtn = $('fish');
 
-/** 把槌头移到 (clientX, clientY)；不传则回到停靠位 */
+// 木鱼在 SVG viewBox(240×200) 里的椭圆：中心 (120,106)，半径 88×62
+const FISH = { cx: 120 / 240, cy: 106 / 200, rx: 88 / 240, ry: 62 / 200, inset: 0.82 };
+// 停靠位（相对 .fish-btn 的比例）。注意：不能写成 CSS 的 translate 百分比，
+// 那是相对木槌自身尺寸算的，会把槌甩到左上角去。
+const DOCK = { x: 0.62, y: 0.44 };
+
+/** 把槌头移到 (clientX, clientY)；不传则回到停靠位。
+ *  按钮是矩形而木鱼是椭圆，指针落在四角空白时把槌头吸附回木鱼面上，
+ *  否则槌头会悬在木鱼外的半空中。 */
 function aimMallet(clientX, clientY) {
-  if (clientX == null) {
+  const r = fishBtn.getBoundingClientRect();
+  if (clientX == null) {                 // 归位：木鱼右上表面
     mallet.classList.remove('follow');
-    mallet.style.removeProperty('--mx');
-    mallet.style.removeProperty('--my');
+    mallet.style.setProperty('--mx', r.width * DOCK.x + 'px');
+    mallet.style.setProperty('--my', r.height * DOCK.y + 'px');
     return;
   }
-  const r = fishBtn.getBoundingClientRect();
+  const cx = r.width * FISH.cx, cy = r.height * FISH.cy;
+  const rx = r.width * FISH.rx * FISH.inset, ry = r.height * FISH.ry * FISH.inset;
+  let x = clientX - r.left, y = clientY - r.top;
+  const d = Math.hypot((x - cx) / rx, (y - cy) / ry);
+  if (d > 1) {                       // 落在木鱼外 → 拉到最近的木鱼边缘
+    x = cx + (x - cx) / d;
+    y = cy + (y - cy) / d;
+  }
   mallet.classList.add('follow');
-  mallet.style.setProperty('--mx', (clientX - r.left) + 'px');
-  mallet.style.setProperty('--my', (clientY - r.top) + 'px');
+  mallet.style.setProperty('--mx', x + 'px');
+  mallet.style.setProperty('--my', y + 'px');
 }
 
 /** 槌头当前落点，用于涟漪和飘字定位 */
@@ -283,7 +299,7 @@ function malletPoint() {
   const mx = mallet.style.getPropertyValue('--mx');
   const my = mallet.style.getPropertyValue('--my');
   return mx ? { x: parseFloat(mx), y: parseFloat(my) }
-            : { x: r.width * 0.82, y: r.height * 0.14 };
+            : { x: r.width * DOCK.x, y: r.height * DOCK.y };
 }
 
 // ── 敲击 ──────────────────────────────────────
@@ -459,6 +475,10 @@ document.addEventListener('keydown', e => {
 
 // 页面回到前台时立刻刷新（补上后台期间的累积）
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+// 停靠位按木鱼实际尺寸算，尺寸变了要重算
+addEventListener('resize', () => { if (!mallet.classList.contains('follow')) aimMallet(null); });
+aimMallet(null);
 
 // ── 启动 ──────────────────────────────────────
 render();

@@ -111,27 +111,27 @@ body{
 
 /* 木槌 = 光标。--mx/--my 是槌头要落到的点（相对 .fish-btn） */
 .mallet{
-  position:absolute;left:0;top:0;width:20%;
-  --mx:82%;--my:14%;
-  /* 平时悬在指针上方，敲击时才真正落到指针点上 */
-  transform:translate(var(--mx),var(--my)) translate(-50%,-81%) translateY(-16px);
+  position:absolute;left:0;top:0;width:22%;
+  --mx:0px;--my:0px;          /* 由 JS 按木鱼实际尺寸设成 px，见 DOCK */
+  /* -50%/-86% 把槌头对到 --mx/--my；平时悬在指针上方，敲击才落下 */
+  transform:translate(var(--mx),var(--my)) translate(-50%,-86%) translateY(-16px);
   transition:transform .5s cubic-bezier(.3,1.1,.5,1);
   pointer-events:none;filter:drop-shadow(0 16px 12px rgba(0,0,0,.6));
   will-change:transform;
 }
 .mallet.follow{transition:transform .07s linear}
-/* 槌身绕槌头旋转：抬起时柄向右上倾，落下时立直 */
+/* 槌身绕槌头旋转。柄朝向观察者：从槌头指向右下方，像自己握着槌在敲。 */
 .mallet svg{
   width:100%;height:auto;display:block;
-  transform-origin:50% 81%;transform:rotate(-30deg);
+  transform-origin:50% 86%;transform:rotate(158deg);
 }
 .mallet.strike svg{animation:strike .3s cubic-bezier(.25,1,.4,1)}
 @keyframes strike{
-  0%{transform:translateY(-22px) rotate(-48deg)}
-  24%{transform:translateY(16px) rotate(-13deg)}   /* 落到指针点，接触 */
-  46%{transform:translateY(4px) rotate(-22deg)}    /* 反弹 */
-  70%{transform:translateY(8px) rotate(-26deg)}
-  100%{transform:translateY(0) rotate(-30deg)}     /* 回到悬停 */
+  0%{transform:translateY(-22px) rotate(146deg)}   /* 抬起，手腕带着柄扬开 */
+  24%{transform:translateY(16px) rotate(164deg)}   /* 落到指针点，接触 */
+  46%{transform:translateY(4px) rotate(154deg)}    /* 反弹 */
+  70%{transform:translateY(8px) rotate(160deg)}
+  100%{transform:translateY(0) rotate(158deg)}     /* 回到悬停 */
 }
 
 /* 敲击涟漪 */
