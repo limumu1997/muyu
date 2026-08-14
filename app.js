@@ -611,8 +611,13 @@ fishBtn.addEventListener('pointerup', e => {
     btn.setAttribute('aria-label', isFull() ? '退出全屏' : '全屏');
   };
   btn.addEventListener('click', () => {
-    (isFull() ? exit.call(document) : req.call(el, { navigationUI: 'hide' }))
-      ?.catch?.(() => toast('这个浏览器不让全屏'));
+    if (isFull()) { try { exit.call(document); } catch { /* 退不出就算了 */ } return; }
+    // 有的浏览器（尤其是各家 ROM 自带的）API 在、调用不报错，但就是不全屏。
+    // 光靠 catch 抓不到，得回头看一眼到底进没进，不然按钮点下去毫无反馈。
+    try { req.call(el, { navigationUI: 'hide' }); } catch { /* 下面统一提示 */ }
+    setTimeout(() => {
+      if (!isFull()) toast('这个浏览器不给网页全屏，试试菜单里「添加到主屏幕」');
+    }, 500);
   });
   ['fullscreenchange', 'webkitfullscreenchange'].forEach(ev =>
     document.addEventListener(ev, sync));

@@ -101,7 +101,11 @@ body{
   background:none;border:none;color:var(--ink-dim);padding:8px;cursor:pointer;
   border-radius:10px;display:grid;place-items:center;transition:color .2s,background .2s;
 }
-.icon-btn:hover{color:var(--gold);background:rgba(232,182,97,.08)}
+/* 触摸屏上 :hover 点完会一直粘着，只给真有指针的设备 */
+@media (hover:hover){
+  .icon-btn:hover{color:var(--gold);background:rgba(232,182,97,.08)}
+}
+.icon-btn:active{color:var(--gold)}
 .topbar-actions{display:flex;align-items:center;gap:2px}
 /* 未全屏时显示“进入”图标，全屏后显示“退出”图标 */
 #btnFull .ic-out{display:none}
@@ -321,9 +325,11 @@ body.is-full #btnFull .ic-out{display:block}
 }
 .btn:active{transform:scale(.98)}
 .btn.primary{background:linear-gradient(135deg,var(--gold),var(--gold-soft));color:#231a0e;font-weight:600}
-.btn.primary:hover{filter:brightness(1.08)}
 .btn.ghost{background:rgba(255,255,255,.06);color:var(--ink-dim);border:1px solid var(--line)}
-.btn.ghost:hover{color:#e0895c;border-color:rgba(224,137,92,.4)}
+@media (hover:hover){
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.ghost:hover{color:#e0895c;border-color:rgba(224,137,92,.4)}
+}
 
 /* toast */
 .toast{
