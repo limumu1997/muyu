@@ -95,28 +95,55 @@ body{
 
 .fish-btn{
   position:relative;background:none;border:none;padding:0;cursor:pointer;
-  width:min(78vw,340px);display:block;
+  width:min(78vw,340px);display:block;cursor:none;
   filter:drop-shadow(0 18px 30px rgba(0,0,0,.5));
   transition:transform .09s cubic-bezier(.3,.8,.4,1);
 }
-.fish-btn:active{transform:scale(.965)}
-.fish-svg{width:100%;height:auto;display:block;transform-origin:50% 78%}
-.fish-btn.hit .fish-svg{animation:thump .34s cubic-bezier(.3,1.4,.5,1)}
+.fish-svg{width:100%;height:auto;display:block;transform-origin:50% 82%}
+.fish-btn.hit .fish-svg{animation:thump .42s cubic-bezier(.3,1.3,.5,1)}
 @keyframes thump{
-  0%{transform:scale(1,1)}
-  22%{transform:scale(1.05,.9)}
-  55%{transform:scale(.985,1.03)}
-  100%{transform:scale(1,1)}
+  0%{transform:translateY(0) scale(1,1)}
+  16%{transform:translateY(6px) scale(1.075,.87)}
+  42%{transform:translateY(-3px) scale(.975,1.05)}
+  68%{transform:translateY(2px) scale(1.015,.985)}
+  100%{transform:translateY(0) scale(1,1)}
 }
 
+/* 木槌 = 光标。--mx/--my 是槌头要落到的点（相对 .fish-btn） */
 .mallet{
-  position:absolute;right:36%;top:-43%;width:23%;
-  transform-origin:50% 6%;transform:rotate(-38deg);
-  transition:transform .24s cubic-bezier(.4,1.3,.6,1);
-  pointer-events:none;filter:drop-shadow(0 8px 12px rgba(0,0,0,.5));
+  position:absolute;left:0;top:0;width:20%;
+  --mx:82%;--my:14%;
+  /* 平时悬在指针上方，敲击时才真正落到指针点上 */
+  transform:translate(var(--mx),var(--my)) translate(-50%,-81%) translateY(-16px);
+  transition:transform .5s cubic-bezier(.3,1.1,.5,1);
+  pointer-events:none;filter:drop-shadow(0 16px 12px rgba(0,0,0,.6));
+  will-change:transform;
 }
-.mallet svg{width:100%;height:auto;display:block}
-.fish-btn.hit .mallet{transform:rotate(-18deg);transition-duration:.07s}
+.mallet.follow{transition:transform .07s linear}
+/* 槌身绕槌头旋转：抬起时柄向右上倾，落下时立直 */
+.mallet svg{
+  width:100%;height:auto;display:block;
+  transform-origin:50% 81%;transform:rotate(-30deg);
+}
+.mallet.strike svg{animation:strike .3s cubic-bezier(.25,1,.4,1)}
+@keyframes strike{
+  0%{transform:translateY(-22px) rotate(-48deg)}
+  24%{transform:translateY(16px) rotate(-13deg)}   /* 落到指针点，接触 */
+  46%{transform:translateY(4px) rotate(-22deg)}    /* 反弹 */
+  70%{transform:translateY(8px) rotate(-26deg)}
+  100%{transform:translateY(0) rotate(-30deg)}     /* 回到悬停 */
+}
+
+/* 敲击涟漪 */
+.ripple{
+  position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;
+  border:2px solid rgba(232,182,97,.85);pointer-events:none;
+  animation:ripple .55s cubic-bezier(.2,.7,.3,1) forwards;
+}
+@keyframes ripple{
+  0%{opacity:.9;transform:scale(.3)}
+  100%{opacity:0;transform:scale(5.5)}
+}
 
 /* 飘字 */
 .floats{position:absolute;inset:0;pointer-events:none;overflow:visible}

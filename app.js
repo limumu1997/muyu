@@ -128,41 +128,91 @@ function pendingNow() {
   };
 }
 
-// ── 音效（Web Audio 合成，无外部文件）────────────
+// ── 音效：木鱼的模态合成（无外部音频文件）──────────
+// 木头被敲 = 极短的冲击激励 + 木腔几个不成谐波列的共振模态，各自快速衰减。
+// 想调音色：F0 决定音高（大木鱼调低到 ~380，小木鱼 ~700）；
+// 嫌闷就把下面 click 那段的 cg.gain 调大，嫌吵就调小。
+// 模态：[频率比, 衰减秒, 音量]
+const MODES = [
+  [1.00, 0.34, 0.60],   // 基频腔体，撑起"笃"的音高
+  [1.94, 0.16, 0.24],   // 非整数比 → 木头的闷，不是钟的谐波列
+  [3.31, 0.075, 0.11],
+  [5.12, 0.035, 0.05],
+];
+const F0 = 540;
+
 let ac = null;
-function knockSound() {
+const noiseCache = new Map();
+
+/** 一段噪声源：ms 毫秒，pow 越大衰减越陡 */
+function excitation(ctx, ms = 5, pow = 2) {
+  const key = `${ctx.sampleRate}/${ms}/${pow}`;
+  let buf = noiseCache.get(key);
+  if (!buf) {
+    const len = Math.max(1, Math.floor(ctx.sampleRate * ms / 1000));
+    buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, pow);
+    }
+    noiseCache.set(key, buf);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  return src;
+}
+
+/** 在 ctx 上于 t 时刻构建一次敲击，接到 dest；vel 为力度 0~1 */
+function buildKnock(ctx, dest, t, vel = 1, detune = 1) {
+  const out = ctx.createGain();
+  out.gain.value = 0.6 * vel;
+  out.connect(dest);
+
+  // 各模态用衰减正弦谐振，能量和衰减时间才控得准
+  for (const [ratio, dur, amp] of MODES) {
+    const f = F0 * ratio * detune;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f * 1.06, t);              // 敲击瞬间张力略高，很快回落
+    osc.frequency.exponentialRampToValueAtTime(f, t + 0.03);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(amp, t + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g).connect(out);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
+  // 木质颗粒：带通噪声，让它不像纯电子正弦
+  const grain = excitation(ctx, 6, 2);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = F0 * 1.5 * detune; bp.Q.value = 2.2;
+  const gg = ctx.createGain();
+  gg.gain.setValueAtTime(1.6, t);
+  gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+  grain.connect(bp).connect(gg).connect(out);
+  grain.start(t);
+
+  // 槌头触木的"哒"：木头敲击必须有的高频瞬态，衰减平缓些才听得见
+  const click = excitation(ctx, 12, 0.8);
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 2400;
+  const cg = ctx.createGain();
+  cg.gain.setValueAtTime(1.1, t);
+  cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
+  click.connect(hp).connect(cg).connect(out);
+  click.start(t);
+
+  return out;
+}
+
+function knockSound(vel = 1) {
   if (!cfg.sound) return;
   try {
     ac = ac || new (window.AudioContext || window.webkitAudioContext)();
     if (ac.state === 'suspended') ac.resume();
-    const t = ac.currentTime;
-    const jit = 0.94 + Math.random() * 0.12;
-
-    // 木腔共鸣：快速下滑的三角波
-    const osc = ac.createOscillator();
-    const g = ac.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(880 * jit, t);
-    osc.frequency.exponentialRampToValueAtTime(300 * jit, t + 0.09);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.5, t + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
-    osc.connect(g).connect(ac.destination);
-    osc.start(t); osc.stop(t + 0.2);
-
-    // 敲击瞬态：带通噪声
-    const n = ac.createBufferSource();
-    const buf = ac.createBuffer(1, ac.sampleRate * 0.05, ac.sampleRate);
-    const ch = buf.getChannelData(0);
-    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length);
-    n.buffer = buf;
-    const bp = ac.createBiquadFilter();
-    bp.type = 'bandpass'; bp.frequency.value = 2100 * jit; bp.Q.value = 1.1;
-    const ng = ac.createGain();
-    ng.gain.setValueAtTime(0.35, t);
-    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-    n.connect(bp).connect(ng).connect(ac.destination);
-    n.start(t);
+    buildKnock(ac, ac.destination, ac.currentTime, vel, 0.97 + Math.random() * 0.06);
   } catch { /* 音频不可用就静默 */ }
 }
 
@@ -209,6 +259,33 @@ function render() {
     : '';
 }
 
+// ── 木槌跟随指针 ──────────────────────────────
+const mallet = $('mallet');
+const fishBtn = $('fish');
+
+/** 把槌头移到 (clientX, clientY)；不传则回到停靠位 */
+function aimMallet(clientX, clientY) {
+  if (clientX == null) {
+    mallet.classList.remove('follow');
+    mallet.style.removeProperty('--mx');
+    mallet.style.removeProperty('--my');
+    return;
+  }
+  const r = fishBtn.getBoundingClientRect();
+  mallet.classList.add('follow');
+  mallet.style.setProperty('--mx', (clientX - r.left) + 'px');
+  mallet.style.setProperty('--my', (clientY - r.top) + 'px');
+}
+
+/** 槌头当前落点，用于涟漪和飘字定位 */
+function malletPoint() {
+  const r = fishBtn.getBoundingClientRect();
+  const mx = mallet.style.getPropertyValue('--mx');
+  const my = mallet.style.getPropertyValue('--my');
+  return mx ? { x: parseFloat(mx), y: parseFloat(my) }
+            : { x: r.width * 0.82, y: r.height * 0.14 };
+}
+
 // ── 敲击 ──────────────────────────────────────
 function knock() {
   const p = pendingNow();
@@ -220,10 +297,18 @@ function knock() {
   }
   save();
 
-  const fish = $('fish');
-  fish.classList.remove('hit');
-  void fish.offsetWidth;
-  fish.classList.add('hit');
+  // 木鱼形变
+  fishBtn.classList.remove('hit');
+  void fishBtn.offsetWidth;
+  fishBtn.classList.add('hit');
+  setTimeout(() => fishBtn.classList.remove('hit'), 430);
+
+  // 木槌抬起落下
+  mallet.classList.remove('strike');
+  void mallet.offsetWidth;
+  mallet.classList.add('strike');
+  setTimeout(() => mallet.classList.remove('strike'), 310);
+
   const halo = $('halo');
   halo.classList.add('hit');
   setTimeout(() => halo.classList.remove('hit'), 320);
@@ -232,14 +317,26 @@ function knock() {
   amt.classList.add('zeroed');
   setTimeout(() => amt.classList.remove('zeroed'), 200);
 
+  // 涟漪从敲击点扩散
+  const pt = malletPoint();
+  const rp = document.createElement('div');
+  rp.className = 'ripple';
+  rp.style.left = pt.x + 'px';
+  rp.style.top = pt.y + 'px';
+  fishBtn.appendChild(rp);
+  setTimeout(() => rp.remove(), 560);
+
   const f = document.createElement('div');
   f.className = 'float' + (p.amount >= ratePerSecond() * 1800 ? ' big' : '');
   f.textContent = p.amount > 0 ? `+¥${money(p.amount)}` : '功德 +0';
-  f.style.left = (42 + Math.random() * 16) + '%';
+  const fr = fishBtn.getBoundingClientRect();
+  const wr = fishBtn.parentElement.getBoundingClientRect();
+  f.style.left = (fr.left - wr.left + pt.x) + 'px';
+  f.style.top = (fr.top - wr.top + pt.y - 20) + 'px';
   $('floats').appendChild(f);
   setTimeout(() => f.remove(), 1300);
 
-  knockSound();
+  knockSound(p.amount > 0 ? 1 : 0.55);
   if (navigator.vibrate) navigator.vibrate(p.amount > 0 ? 18 : 8);
   render();
 }
@@ -310,7 +407,17 @@ function toast(msg) {
 }
 
 // ── 事件绑定 ──────────────────────────────────
-$('fish').addEventListener('click', knock);
+// 木槌跟着指针走，落点即敲击点
+fishBtn.addEventListener('pointermove', e => aimMallet(e.clientX, e.clientY));
+fishBtn.addEventListener('pointerleave', () => aimMallet(null));
+fishBtn.addEventListener('pointerdown', e => {
+  e.preventDefault();                       // 别让浏览器再补一次 click
+  aimMallet(e.clientX, e.clientY);
+  knock();
+});
+fishBtn.addEventListener('pointerup', e => {
+  if (e.pointerType !== 'mouse') aimMallet(null);   // 触摸抬手后木槌归位
+});
 $('btnSettings').addEventListener('click', openSheet);
 $('sheetMask').addEventListener('click', closeSheet);
 $('inLunchOn').addEventListener('change', () => { syncLunchRow(); previewCalc(); });
@@ -341,7 +448,9 @@ $('btnReset').addEventListener('click', () => {
 
 document.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'Enter') {
-    if (document.activeElement && /INPUT|BUTTON/.test(document.activeElement.tagName)) return;
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || (ae.tagName === 'BUTTON' && ae !== fishBtn))) return;
+    if ($('sheet').classList.contains('show')) return;
     e.preventDefault();
     knock();
   }
