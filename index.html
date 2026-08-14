@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#12100e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>赛博木鱼 · 功德即工资</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪘</text></svg>">
+</head>
+<body>
+
+<div class="grain"></div>
+
+<header class="topbar">
+  <div class="status" id="status">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">未设置薪资</span>
+  </div>
+  <button class="icon-btn" id="btnSettings" aria-label="设置">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  </button>
+</header>
+
+<main class="stage">
+
+  <section class="pending" id="pendingBox">
+    <div class="pending-label">未结功德</div>
+    <div class="pending-amount"><span class="cny">¥</span><span id="pendingNum">0.00</span></div>
+    <div class="pending-hint" id="pendingHint">敲一下即可收取</div>
+    <div class="cap-bar"><div class="cap-fill" id="capFill"></div></div>
+  </section>
+
+  <div class="fish-wrap">
+    <div class="halo" id="halo"></div>
+    <button class="fish-btn" id="fish" aria-label="敲木鱼">
+      <svg viewBox="0 0 240 200" class="fish-svg" aria-hidden="true">
+        <defs>
+          <radialGradient id="gBody" cx="38%" cy="30%" r="78%">
+            <stop offset="0%" stop-color="#c98a4b"/>
+            <stop offset="45%" stop-color="#9d5f2c"/>
+            <stop offset="100%" stop-color="#5b3218"/>
+          </radialGradient>
+          <linearGradient id="gMouth" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1c0f07"/>
+            <stop offset="100%" stop-color="#40200e"/>
+          </linearGradient>
+          <radialGradient id="gShine" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ffe6bd" stop-opacity=".85"/>
+            <stop offset="100%" stop-color="#ffe6bd" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="120" cy="181" rx="74" ry="9" fill="#000" opacity=".5"/>
+
+        <!-- 卷云尾 -->
+        <path d="M198 88c16-4 26 4 26 15 0 10-8 16-16 14-8-2-10-10-5-14 5-4 11 0 9 5"
+              fill="none" stroke="#6d3f1e" stroke-width="9" stroke-linecap="round"/>
+
+        <!-- 鱼身 -->
+        <path d="M120 44c52 0 88 26 88 62 0 40-38 62-88 62s-88-22-88-62c0-36 36-62 88-62z" fill="url(#gBody)"/>
+        <path d="M120 44c52 0 88 26 88 62 0 40-38 62-88 62s-88-22-88-62c0-36 36-62 88-62z"
+              fill="none" stroke="#3d2010" stroke-width="2" opacity=".55"/>
+
+        <!-- 木纹 -->
+        <g fill="none" stroke="#3d2010" opacity=".18" stroke-width="1.6">
+          <path d="M56 92c22-16 52-24 84-22"/>
+          <path d="M50 112c26-22 62-32 100-30"/>
+          <path d="M60 136c24-24 58-36 96-36"/>
+        </g>
+
+        <!-- 敲击面开口槽 -->
+        <path d="M46 116c8 30 38 48 74 48s66-18 74-48c-4 34-34 56-74 56s-70-22-74-56z" fill="url(#gMouth)"/>
+        <path d="M52 124c10 22 36 36 68 36s58-14 68-36c-6 26-34 44-68 44s-62-18-68-44z"
+              fill="#000" opacity=".35"/>
+
+        <!-- 高光 -->
+        <ellipse cx="86" cy="76" rx="34" ry="19" fill="url(#gShine)" transform="rotate(-16 86 76)"/>
+        <ellipse cx="70" cy="70" rx="13" ry="7" fill="#ffeccb" opacity=".5" transform="rotate(-22 70 70)"/>
+        <path d="M158 52c26 8 42 22 48 40-16-18-32-30-52-34z" fill="#e0a563" opacity=".22"/>
+      </svg>
+      <div class="mallet" id="mallet">
+        <svg viewBox="0 0 68 170" aria-hidden="true">
+          <rect x="29" y="4" width="10" height="126" rx="5" fill="#7d5029"/>
+          <rect x="30" y="6" width="4" height="122" rx="2" fill="#b08050" opacity=".55"/>
+          <ellipse cx="34" cy="138" rx="28" ry="26" fill="#a86f3d"/>
+          <ellipse cx="34" cy="138" rx="28" ry="26" fill="none" stroke="#5f3818" stroke-width="2" opacity=".5"/>
+          <ellipse cx="25" cy="129" rx="11" ry="8" fill="#dda870" opacity=".55" transform="rotate(-20 25 129)"/>
+        </svg>
+      </div>
+    </button>
+    <div class="floats" id="floats"></div>
+  </div>
+
+  <section class="stats">
+    <div class="stat">
+      <div class="stat-num" id="statTotal">¥0.00</div>
+      <div class="stat-label">累计功德</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="statCount">0</div>
+      <div class="stat-label">敲击次数</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="statBest">¥0.00</div>
+      <div class="stat-label">最高单击</div>
+    </div>
+  </section>
+
+  <p class="rate-note" id="rateNote"></p>
+</main>
+
+<!-- 设置抽屉 -->
+<div class="sheet-mask" id="sheetMask"></div>
+<section class="sheet" id="sheet" aria-hidden="true">
+  <div class="sheet-handle"></div>
+  <h2 class="sheet-title">薪资与班表</h2>
+
+  <label class="field">
+    <span class="field-label">月薪（税前，元）</span>
+    <input type="number" id="inSalary" inputmode="decimal" min="0" step="100" placeholder="例如 20000">
+  </label>
+
+  <label class="field">
+    <span class="field-label">每月计薪天数</span>
+    <input type="number" id="inDays" inputmode="decimal" min="1" max="31" step="0.25" placeholder="21.75">
+  </label>
+
+  <div class="field-row">
+    <label class="field">
+      <span class="field-label">上班</span>
+      <input type="time" id="inStart">
+    </label>
+    <label class="field">
+      <span class="field-label">下班</span>
+      <input type="time" id="inEnd">
+    </label>
+  </div>
+
+  <label class="switch-row">
+    <span class="field-label">午休不计薪</span>
+    <input type="checkbox" id="inLunchOn">
+    <span class="switch"></span>
+  </label>
+
+  <div class="field-row" id="lunchRow">
+    <label class="field">
+      <span class="field-label">午休开始</span>
+      <input type="time" id="inLunchStart">
+    </label>
+    <label class="field">
+      <span class="field-label">午休结束</span>
+      <input type="time" id="inLunchEnd">
+    </label>
+  </div>
+
+  <div class="field">
+    <span class="field-label">工作日</span>
+    <div class="week" id="weekPicker">
+      <button type="button" data-d="1">一</button>
+      <button type="button" data-d="2">二</button>
+      <button type="button" data-d="3">三</button>
+      <button type="button" data-d="4">四</button>
+      <button type="button" data-d="5">五</button>
+      <button type="button" data-d="6">六</button>
+      <button type="button" data-d="0">日</button>
+    </div>
+  </div>
+
+  <label class="switch-row">
+    <span class="field-label">敲击音效</span>
+    <input type="checkbox" id="inSound" checked>
+    <span class="switch"></span>
+  </label>
+
+  <div class="calc-preview" id="calcPreview"></div>
+
+  <div class="sheet-actions">
+    <button class="btn ghost" id="btnReset">清空功德</button>
+    <button class="btn primary" id="btnSave">保存</button>
+  </div>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

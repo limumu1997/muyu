@@ -1,0 +1,12 @@
+{
+  "name": "赛博木鱼 · 功德即工资",
+  "short_name": "赛博木鱼",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#12100e",
+  "theme_color": "#12100e",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
